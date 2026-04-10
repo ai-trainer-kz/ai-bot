@@ -1,3 +1,7 @@
+import os
+from openai import OpenAI
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 from telebot import types
 import telebot
 import sqlite3
@@ -168,33 +172,18 @@ def finish_test(message):
     del current_question[uid]
 
 # ===== ИИ =====
-@bot.message_handler(func=lambda m: m.text == "🤖 ИИ")
-def ai_mode(message):
-    bot.send_message(message.chat.id, "Задай вопрос ✍️")
-
-@bot.message_handler(func=lambda m: True)
-def chat(message):
-    uid = message.from_user.id
-
-    if user_mode.get(uid) != "ai":
-     return
-    lang = get_lang(uid)
-
+@bot.message_handler(func=lambda message: True)
+def chat_with_ai(message):
     try:
-        prompt = message.text
-
-        if lang == "kk":
-            prompt = "Жауапты қазақ тілінде бер: " + prompt
-
         response = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role":"user","content":prompt}]
+            messages=[
+                {"role": "user", "content": message.text}
+            ]
         )
-
-        bot.send_message(uid, response.choices[0].message.content)
-
+        bot.reply_to(message, response.choices[0].message.content)
     except:
-        bot.send_message(uid, "Ошибка ИИ 😢")
+        bot.reply_to(message, "Ошибка ИИ 😢")
 
 # ===== ГОЛОС =====
 @bot.message_handler(func=lambda m: m.text == "🎤 Голос")
