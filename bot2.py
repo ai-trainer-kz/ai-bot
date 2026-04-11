@@ -7,7 +7,7 @@ import random
 from gtts import gTTS
 
 # ===== НАСТРОЙКИ =====
-TOKEN = "твой_телеграм_токен"
+TOKEN = os.getenv("TOKEN")
 ADMIN_ID = 123456789
 
 bot = telebot.TeleBot(TOKEN)
