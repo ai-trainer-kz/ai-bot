@@ -1,241 +1,157 @@
 import os
-from openai import OpenAI
 import telebot
 from telebot import types
 import sqlite3
 import random
 from gtts import gTTS
+from openai import OpenAI
 
-# ===== НАСТРОЙКИ =====
+# ====== НАСТРОЙКИ ======
 TOKEN = os.getenv("TOKEN")
-ADMIN_ID = 123456789
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 bot = telebot.TeleBot(TOKEN)
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-user_mode = {}
-# ===== БАЗА =====
+# ====== БАЗА ======
 conn = sqlite3.connect("users.db", check_same_thread=False)
 cursor = conn.cursor()
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS users (
     user_id INTEGER PRIMARY KEY,
-    best_score INTEGER DEFAULT 0,
     premium INTEGER DEFAULT 0,
-    lang TEXT DEFAULT 'ru'
+    lang TEXT DEFAULT 'ru',
+    score INTEGER DEFAULT 0
 )
 """)
 conn.commit()
 
-# ===== ДАННЫЕ =====
-user_score = {}
-user_total = {}
-current_question = {}
+user_mode = {}
 
-# ===== ЯЗЫК =====
-def detect_lang(text):
-    kazakh_letters = "әіңғүұқөһ"
-    for ch in text.lower():
-        if ch in kazakh_letters:
-            return "kk"
-    return "ru"
+# ====== ВОПРОСЫ ======
+questions = [
+    {"q": "2 + 2 = ?", "options": ["3", "4", "5"], "answer": "4"},
+    {"q": "Столица Казахстана?", "options": ["Алматы", "Астана", "Шымкент"], "answer": "Астана"},
+    {"q": "5 * 6 = ?", "options": ["30", "25", "20"], "answer": "30"}
+]
 
-def get_lang(uid):
-    row = cursor.fetchone()
-    return row[0] if row else "ru"
+# ====== ПРОВЕРКА ПРЕМИУМ ======
+def is_premium(user_id):
+    cursor.execute("SELECT premium FROM users WHERE user_id=?", (user_id,))
+    result = cursor.fetchone()
+    return result and result[0] == 1
 
-# ===== МЕНЮ =====
-def main_menu():
+# ====== СТАРТ ======
+@bot.message_handler(commands=['start'])
+def start(message):
+    user_id = message.chat.id
+    
+    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+    conn.commit()
+
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("🚀 Тест", "🤖 ИИ")
     markup.add("📊 Статистика", "🏆 Топ")
     markup.add("🎤 Голос", "💎 Премиум")
-    markup.add("🌐 Язык")
-    return markup
+    markup.add("🌍 Язык")
 
-# ===== СТАРТ =====
-@bot.message_handler(commands=['start'])
-def start(message):
-    uid = message.from_user.id
-    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (uid,))
-    conn.commit()
+    bot.send_message(user_id, "Добро пожаловать 🚀\nВыбери режим:", reply_markup=markup)
 
-    bot.send_message(uid,
-        "Добро пожаловать 🚀\nВыбери режим:",
-        reply_markup=main_menu())
+# ====== ИИ ======
+@bot.message_handler(func=lambda m: m.text == "🤖 ИИ")
+def ai_mode(message):
+    bot.send_message(message.chat.id, "Напиши вопрос 👇")
+    user_mode[message.chat.id] = "ai"
 
-# ===== ЯЗЫК ВЫБОР =====
-@bot.message_handler(func=lambda m: m.text in ["Қазақша", "Русский"])
-def set_language(message):
-    uid = message.from_user.id
-    
-    lang = "kk" if message.text == "Қазақша" else "ru"
-    
-    cursor.execute("UPDATE users SET lang=? WHERE user_id=?", (lang, uid))
-    conn.commit()
-    
-    bot.send_message(message.chat.id, "Тіл сақталды ✅" if lang=="kk" else "Язык сохранён ✅")
+# ====== ПРЕМИУМ ИИ ======
+@bot.message_handler(func=lambda m: m.text == "💎 Премиум")
+def premium_mode(message):
+    bot.send_message(message.chat.id, "💎 Премиум режим активирован")
+    user_mode[message.chat.id] = "premium"
 
-# ===== ВОПРОС =====
-def generate_question():
-    a = random.randint(2, 20)
-    b = random.randint(2, 20)
-    correct = a * b
+# ====== ГОЛОС ======
+@bot.message_handler(func=lambda m: m.text == "🎤 Голос")
+def voice_mode(message):
+    bot.send_message(message.chat.id, "Отправь текст, я озвучу 🎤")
+    user_mode[message.chat.id] = "voice"
 
-    options = list(set([correct,
-        correct + random.randint(1,5),
-        correct - random.randint(1,5),
-        correct + random.randint(6,10)
-    ]))
-
-    while len(options) < 4:
-        options.append(correct + random.randint(1,10))
-
-    random.shuffle(options)
-
-    letters = ["A","B","C","D"]
-    correct_letter = letters[options.index(correct)]
-
-    text = f"{a} * {b}?\n"
-    for i in range(4):
-        text += f"{letters[i]}) {options[i]}\n"
-
-    return text, correct_letter, correct
-
-# ===== ТЕСТ =====
+# ====== ТЕСТ ======
 @bot.message_handler(func=lambda m: m.text == "🚀 Тест")
-def start_test(message):
-    uid = message.from_user.id
-    user_score[uid] = 0
-    user_total[uid] = 0
-    send_question(message)
-
-def send_question(message):
-    uid = message.from_user.id
-
-    if user_total.get(uid,0) >= 10:
-        finish_test(message)
-        return
-
-    q, letter, value = generate_question()
-    current_question[uid] = (letter, value)
-
+def test_mode(message):
+    q = random.choice(questions)
+    
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("A","B","C","D")
+    for opt in q["options"]:
+        markup.add(opt)
 
-    bot.send_message(uid, q, reply_markup=markup)
+    bot.send_message(message.chat.id, q["q"], reply_markup=markup)
+    user_mode[message.chat.id] = q
 
-@bot.message_handler(func=lambda m: m.text in ["A","B","C","D"])
-def answer(message):
-    uid = message.from_user.id
+# ====== ОБРАБОТКА ======
+@bot.message_handler(func=lambda message: True)
+def handle(message):
+    user_id = message.chat.id
+    text = message.text
 
-    if uid not in current_question:
+    # ===== ТЕСТ =====
+    if user_id in user_mode and isinstance(user_mode[user_id], dict):
+        q = user_mode[user_id]
+
+        if text == q["answer"]:
+            bot.send_message(user_id, "✅ Правильно!")
+            cursor.execute("UPDATE users SET score = score + 1 WHERE user_id=?", (user_id,))
+            conn.commit()
+        else:
+            bot.send_message(user_id, f"❌ Неправильно. Ответ: {q['answer']}")
+
+        del user_mode[user_id]
         return
 
-    correct_letter, correct_value = current_question[uid]
-    user_total[uid] += 1
-
-    if message.text == correct_letter:
-        user_score[uid] += 1
-        bot.send_message(uid, f"Правильно ✅ {user_score[uid]}/{user_total[uid]}")
-    else:
-        bot.send_message(uid, f"Неправильно ❌ {correct_letter} ({correct_value})")
-
-    send_question(message)
-
-def finish_test(message):
-    uid = message.from_user.id
-    score = user_score[uid]
-
-    cursor.execute("SELECT best_score FROM users WHERE user_id=?", (uid,))
-    row = cursor.fetchone()
-
-    if row:
-        if score > row[0]:
-            cursor.execute("UPDATE users SET best_score=? WHERE user_id=?", (score, uid))
-    else:
-        cursor.execute("INSERT INTO users (user_id,best_score) VALUES (?,?)",(uid,score))
-
-    conn.commit()
-
-    bot.send_message(uid, f"Тест завершён 🎯\n{score}/10", reply_markup=main_menu())
-
-    del user_score[uid]
-    del user_total[uid]
-    del current_question[uid]
-
-# ===== ИИ =====
-@bot.message_handler(func=lambda message: True)
-def chat_with_ai(message):
-    try:
+    # ===== ИИ =====
+    if user_mode.get(user_id) == "ai":
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "user", "content": message.text}
+                {"role": "system", "content": "Ты помощник по ЕНТ. Отвечай кратко и понятно."},
+                {"role": "user", "content": text}
             ]
         )
-        bot.reply_to(message, response.choices[0].message.content)
-    except:
-        bot.reply_to(message, "Ошибка ИИ 😢")
 
-# ===== ГОЛОС =====
-@bot.message_handler(func=lambda m: m.text == "🎤 Голос")
-def voice_mode(message):
-    bot.send_message(message.chat.id, "Напиши текст с ! в начале\nПример: !Привет")
+        bot.send_message(user_id, response.choices[0].message.content)
+        return
 
-@bot.message_handler(func=lambda m: m.text and m.text.startswith("!"))
-def voice(message):
-    uid = message.from_user.id
-    text = message.text[1:]
+    # ===== ПРЕМИУМ =====
+    if user_mode.get(user_id) == "premium":
+        if not is_premium(user_id):
+            bot.send_message(user_id, "❌ Купи премиум")
+            return
 
-    lang = detect_lang(text)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Ты продвинутый репетитор ЕНТ. Дай подробный ответ."},
+                {"role": "user", "content": text}
+            ]
+        )
 
-    tts = gTTS(text=text, lang=lang)
-    file = "voice.mp3"
-    tts.save(file)
+        bot.send_message(user_id, response.choices[0].message.content)
+        return
 
-    with open(file,"rb") as f:
-        bot.send_voice(uid, f)
+    # ===== ГОЛОС =====
+    if user_mode.get(user_id) == "voice":
+        tts = gTTS(text=text, lang='ru')
+        tts.save("voice.mp3")
 
-    os.remove(file)
+        with open("voice.mp3", "rb") as audio:
+            bot.send_voice(user_id, audio)
+        return
 
-# ===== ПРЕМИУМ =====
-@bot.message_handler(func=lambda m: m.text == "💎 Премиум")
-def premium(message):
-    bot.send_message(message.chat.id,
-        "💎 Премиум\nПереведи 1000₸ на Kaspi\n87000000000\nПосле: /pay 1234")
-
-@bot.message_handler(commands=['pay'])
-def pay(message):
-    uid = message.from_user.id
-    cursor.execute("UPDATE users SET premium=1 WHERE user_id=?", (uid,))
-    conn.commit()
-
-    bot.send_message(uid, "Премиум активирован 🚀")
-
-# ===== СТАТИСТИКА =====
+# ====== СТАТИСТИКА ======
 @bot.message_handler(func=lambda m: m.text == "📊 Статистика")
 def stats(message):
-    uid = message.from_user.id
-    cursor.execute("SELECT best_score FROM users WHERE user_id=?", (uid,))
-    row = cursor.fetchone()
-    best = row[0] if row else 0
-    bot.send_message(uid, f"Лучший результат: {best}")
+    cursor.execute("SELECT score FROM users WHERE user_id=?", (message.chat.id,))
+    score = cursor.fetchone()[0]
+    bot.send_message(message.chat.id, f"📊 Твой счёт: {score}")
 
-# ===== ТОП =====
-@bot.message_handler(func=lambda m: m.text == "🏆 Топ")
-def top(message):
-    cursor.execute("SELECT best_score FROM users ORDER BY best_score DESC LIMIT 5")
-    rows = cursor.fetchall()
-
-    text = "🏆 ТОП:\n"
-    for i,r in enumerate(rows,1):
-        text += f"{i}. {r[0]}\n"
-
-    bot.send_message(message.chat.id, text)
-
-# ===== ЗАПУСК =====
-print("Бот запущен 🚀")
+# ====== ЗАПУСК ======
 bot.infinity_polling()
