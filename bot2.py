@@ -1,25 +1,20 @@
 import os
 from openai import OpenAI
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-from telebot import types
 import telebot
+from telebot import types
 import sqlite3
-from openai import OpenAI
 import random
 from gtts import gTTS
-import os
 
 # ===== НАСТРОЙКИ =====
-TOKEN = "8315601912:AAHoo0mcZHJV8qtlDdjze7HQvM6tXgM9U88"
-OPENAI_API_KEY = "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"
+TOKEN = "твой_телеграм_токен"
 ADMIN_ID = 123456789
 
 bot = telebot.TeleBot(TOKEN)
-client = OpenAI(api_key=OPENAI_API_KEY)
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 user_mode = {}
-
 # ===== БАЗА =====
 conn = sqlite3.connect("users.db", check_same_thread=False)
 cursor = conn.cursor()
