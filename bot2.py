@@ -96,10 +96,10 @@ def test_mode(message):
 # ====== ОБРАБОТКА ======
 @bot.message_handler(func=lambda message: True)
 def handle(message):
-   user_id = message.chat.id
-text = message.text
+    user_id = message.chat.id
+    text = message.text
 
-bot.send_chat_action(user_id, "typing")
+    bot.send_chat_action(user_id, "typing")
     # ===== ТЕСТ =====
     if user_id in user_mode and isinstance(user_mode[user_id], dict):
         q = user_mode[user_id]
