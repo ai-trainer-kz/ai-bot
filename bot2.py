@@ -65,15 +65,19 @@ def ai_mode(message):
 
 # ====== ПРЕМИУМ ИИ ======
 @bot.message_handler(func=lambda m: m.text == "💎 Премиум")
-bot.send_chat_action(user_id, "typing")
 def premium_mode(message):
+    user_id = message.chat.id
+    bot.send_chat_action(user_id, "typing")  # ✅ теперь правильно
+
     bot.send_message(message.chat.id, "💎 Премиум режим активирован")
     user_mode[message.chat.id] = "premium"
 
 # ====== ГОЛОС ======
 @bot.message_handler(func=lambda m: m.text == "🎤 Голос")
-bot.send_chat_action(user_id, "record_voice")
 def voice_mode(message):
+    user_id = message.chat.id
+    bot.send_chat_action(user_id, "record_voice")  # ✅
+
     bot.send_message(message.chat.id, "Отправь текст, я озвучу 🎤")
     user_mode[message.chat.id] = "voice"
 
@@ -92,9 +96,10 @@ def test_mode(message):
 # ====== ОБРАБОТКА ======
 @bot.message_handler(func=lambda message: True)
 def handle(message):
-    user_id = message.chat.id
-    text = message.text
+   user_id = message.chat.id
+text = message.text
 
+bot.send_chat_action(user_id, "typing")
     # ===== ТЕСТ =====
     if user_id in user_mode and isinstance(user_mode[user_id], dict):
         q = user_mode[user_id]
