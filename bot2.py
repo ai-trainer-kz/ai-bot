@@ -137,9 +137,9 @@ if user_id in user_mode and isinstance(user_mode[user_id], dict):
         else:
             bot.send_message(user_id, f"❌ Неправильно. Ответ: {correct}")
 
-            # сброс
-            user_mode[user_id] = {}
-            return
+             # сброс
+             user_mode[user_id] = {}
+             return
 
     bot.send_chat_action(user_id, "typing")
     # ===== ТЕСТ =====
@@ -154,7 +154,7 @@ if user_id in user_mode and isinstance(user_mode[user_id], dict):
             bot.send_message(user_id, f"❌ Неправильно. Ответ: {q['answer']}")
 
         del user_mode[user_id]
-        return
+            return
 
     # ===== ИИ =====
     if user_mode.get(user_id) == "ai":
