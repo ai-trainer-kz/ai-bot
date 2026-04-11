@@ -65,12 +65,14 @@ def ai_mode(message):
 
 # ====== ПРЕМИУМ ИИ ======
 @bot.message_handler(func=lambda m: m.text == "💎 Премиум")
+bot.send_chat_action(user_id, "typing")
 def premium_mode(message):
     bot.send_message(message.chat.id, "💎 Премиум режим активирован")
     user_mode[message.chat.id] = "premium"
 
 # ====== ГОЛОС ======
 @bot.message_handler(func=lambda m: m.text == "🎤 Голос")
+bot.send_chat_action(user_id, "record_voice")
 def voice_mode(message):
     bot.send_message(message.chat.id, "Отправь текст, я озвучу 🎤")
     user_mode[message.chat.id] = "voice"
@@ -109,6 +111,7 @@ def handle(message):
 
     # ===== ИИ =====
     if user_mode.get(user_id) == "ai":
+        bot.send_chat_action(chat_id, "typing")
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -154,4 +157,8 @@ def stats(message):
     bot.send_message(message.chat.id, f"📊 Твой счёт: {score}")
 
 # ====== ЗАПУСК ======
-bot.infinity_polling()
+while True:
+    try:
+        bot.infinity_polling(timeout=60, long_polling_timeout=60)
+    except Exception as e:
+        print(f"Ошибка: {e}")
