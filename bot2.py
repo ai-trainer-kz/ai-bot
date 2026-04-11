@@ -84,7 +84,21 @@ def voice_mode(message):
 # ====== ТЕСТ ======
 @bot.message_handler(func=lambda m: m.text == "🚀 Тест")
 def test_mode(message):
+    user_id = message.chat.id
+
     q = random.choice(questions)
+
+    # сохраняем вопрос
+    user_mode[user_id] = {
+        "mode": "test",
+        "answer": q["answer"]
+    }
+
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    for opt in q["options"]:
+        markup.add(opt)
+
+    bot.send_message(user_id, q["q"], reply_markup=markup)
     
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     for opt in q["options"]:
@@ -98,6 +112,20 @@ def test_mode(message):
 def handle(message):
     user_id = message.chat.id
     text = message.text
+
+# ===== ПРОВЕРКА ТЕСТА =====
+if user_id in user_mode and isinstance(user_mode[user_id], dict):
+    if user_mode[user_id].get("mode") == "test":
+        correct = user_mode[user_id]["answer"]
+
+        if text == correct:
+            bot.send_message(user_id, "✅ Правильно!")
+        else:
+            bot.send_message(user_id, f"❌ Неправильно. Ответ: {correct}")
+
+        # сброс
+        user_mode[user_id] = {}
+        return
 
     bot.send_chat_action(user_id, "typing")
     # ===== ТЕСТ =====
