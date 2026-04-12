@@ -144,12 +144,12 @@ if user_id in user_mode and isinstance(user_mode[user_id], dict):
     bot.send_chat_action(user_id, "typing")
     # ===== ТЕСТ =====
 if user_id in user_mode and isinstance(user_mode[user_id], dict):
-    q = user_mode[user_id]
+     q = user_mode[user_id]
 
-    if text == q["answer"]:
-        bot.send_message(user_id, "✅ Правильно!")
-        cursor.execute("UPDATE users SET score = score + 1 WHERE user_id=?", (user_id,))
-        conn.commit()
+        if text == q["answer"]:
+           bot.send_message(user_id, "✅ Правильно!")
+           cursor.execute("UPDATE users SET score = score + 1 WHERE user_id=?", (user_id,))
+         conn.commit()
     else:
         bot.send_message(user_id, f"❌ Неправильно. Ответ: {q['answer']}")
 
