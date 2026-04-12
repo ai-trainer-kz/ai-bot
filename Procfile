@@ -1,1 +1,1 @@
-bot2.py → main.py
+worker: python bot2.py
