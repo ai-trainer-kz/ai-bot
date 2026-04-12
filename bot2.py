@@ -86,11 +86,10 @@ async def handle_message(message: types.Message):
 
         if text == q["answer"]:
             await message.answer("✅ Верно!")
-else:
-    await message.answer(f"❌ Неверно! Ответ: {q['answer']}")
+    else:
+        await message.answer(f"❌ Неверно! Ответ: {q['answer']}")
 
-    user_question[user_id] += 1
-
+        user_question[user_id] += 1
            if user_question[user_id] >= len(questions):
               await message.answer(f"Тест завершен 🎉\nБаллы: {user_score[user_id]}")
             user_mode[user_id] = "default"
