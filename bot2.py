@@ -66,9 +66,9 @@ async def handle_message(message: types.Message):
 
      # ==== AI ====
      if user_mode.get(user_id) == "ai":
-        await bot.send_chat_action(user_id, "typing")
+         await bot.send_chat_action(user_id, "typing")
 
-        response = client.chat.completions.create(
+         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "Ты помощник по ЕНТ. Отвечай кратко."},
@@ -76,8 +76,8 @@ async def handle_message(message: types.Message):
             ]
         )
 
-        await message.answer(response.choices[0].message.content)
-        return
+         await message.answer(response.choices[0].message.content)
+         return
 
     # ==== ТЕСТ ====
     if user_mode.get(user_id) == "test":
