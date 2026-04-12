@@ -85,10 +85,9 @@ async def handle_message(message: types.Message):
         q = questions[q_index]
 
         if text == q["answer"]:
-            user_score[user_id] += 1
-              await message.answer("✅ Верно!")
+            await message.answer("✅ Верно!")
         else:
-              await message.answer(f"❌ Неверно! Ответ: {q['answer']}")
+            await message.answer(f"❌ Неверно! Ответ: {q['answer']}")
 
               user_question[user_id] += 1
 
