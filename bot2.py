@@ -1,5 +1,6 @@
 import logging
 import os
+import random
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils import executor
@@ -20,6 +21,7 @@ user_mode = {}
 user_level = {}
 user_score = {}
 user_question = {}
+user_test_questions = {}
 premium_users = set()
 
 # ===== КНОПКИ =====
@@ -38,26 +40,37 @@ answer_kb.add("A", "B", "C", "D")
 questions = {
     "easy": [
         {"q": "2+2=?", "options": ["3", "4", "5", "6"], "a": "B"},
+        {"q": "3+1=?", "options": ["2", "4", "5", "6"], "a": "B"},
+        {"q": "5-2=?", "options": ["2", "3", "4", "1"], "a": "B"},
+        {"q": "6/2=?", "options": ["2", "3", "4", "5"], "a": "B"},
+        {"q": "7-3=?", "options": ["3", "4", "5", "2"], "a": "B"},
     ],
     "medium": [
         {"q": "5*2=?", "options": ["10", "8", "6", "12"], "a": "A"},
         {"q": "10/2=?", "options": ["2", "5", "10", "8"], "a": "B"},
+        {"q": "8*3=?", "options": ["24", "20", "18", "21"], "a": "A"},
+        {"q": "15-7=?", "options": ["6", "7", "8", "9"], "a": "C"},
+        {"q": "9+6=?", "options": ["14", "15", "16", "13"], "a": "B"},
     ],
     "hard": [
         {"q": "12*3=?", "options": ["36", "30", "33", "40"], "a": "A"},
+        {"q": "√16=?", "options": ["4", "5", "6", "3"], "a": "A"},
+        {"q": "25/5=?", "options": ["5", "6", "4", "3"], "a": "A"},
+        {"q": "14+9=?", "options": ["21", "22", "23", "24"], "a": "C"},
+        {"q": "18-11=?", "options": ["6", "7", "8", "9"], "a": "B"},
     ]
 }
 
 # ===== СТАРТ =====
 @dp.message_handler(commands=['start'])
 async def start(message: types.Message):
-    await message.answer("Привет 👋", reply_markup=main_kb)
+    await message.answer("Привет 👋 Выбери действие:", reply_markup=main_kb)
 
 # ===== AI =====
 @dp.message_handler(lambda m: m.text == "🤖 AI")
 async def ai_mode(message: types.Message):
     user_mode[message.from_user.id] = "ai"
-    await message.answer("🤖 Напиши вопрос (русский/қазақша)")
+    await message.answer("🤖 Напиши вопрос (рус/қазақша)")
 
 # ===== ТЕСТ =====
 @dp.message_handler(lambda m: m.text == "📝 Тест")
@@ -80,15 +93,19 @@ async def set_level(message: types.Message):
     user_score[user_id] = 0
     user_question[user_id] = 0
 
+    user_test_questions[user_id] = random.sample(
+        questions[level],
+        min(10, len(questions[level]))
+    )
+
     await send_question(message, user_id)
 
-# ===== ФУНКЦИЯ ВОПРОСА =====
+# ===== ВОПРОС =====
 async def send_question(message, user_id):
-    level = user_level[user_id]
     q_index = user_question[user_id]
-    q = questions[level][q_index]
+    q = user_test_questions[user_id][q_index]
 
-    text = f"{q['q']}\n\n"
+    text = f"Вопрос {q_index+1}/{len(user_test_questions[user_id])}\n\n{q['q']}\n\n"
     letters = ["A", "B", "C", "D"]
 
     for i, opt in enumerate(q["options"]):
@@ -127,11 +144,10 @@ async def handle(message: types.Message):
         await message.answer(response.choices[0].message.content)
         return
 
-    # === ТЕСТ ===
+    # === TEST ===
     if user_mode.get(user_id) == "test":
-        level = user_level[user_id]
         q_index = user_question[user_id]
-        q = questions[level][q_index]
+        q = user_test_questions[user_id][q_index]
 
         if text == q["a"]:
             user_score[user_id] += 1
@@ -141,8 +157,15 @@ async def handle(message: types.Message):
 
         user_question[user_id] += 1
 
-        if user_question[user_id] >= len(questions[level]):
-            await message.answer(f"🎉 Тест аяқталды\nБаллы: {user_score[user_id]}")
+        if user_question[user_id] >= len(user_test_questions[user_id]):
+            score = user_score[user_id]
+            total = len(user_test_questions[user_id])
+            percent = int((score / total) * 100)
+
+            await message.answer(
+                f"🎉 Тест аяқталды\nБаллы: {score}/{total}\nРезультат: {percent}%"
+            )
+
             user_mode[user_id] = "menu"
             return
 
