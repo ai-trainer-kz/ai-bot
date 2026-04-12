@@ -1,115 +1,77 @@
+import logging
 import os
-import sqlite3
 from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
 from openai import OpenAI
 
-# === ТОКЕНЫ ===
+logging.basicConfig(level=logging.INFO)
+
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
+
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# === БАЗА ===
-conn = sqlite3.connect("users.db")
-cursor = conn.cursor()
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS users (
-    user_id INTEGER PRIMARY KEY,
-    score INTEGER DEFAULT 0,
-    premium INTEGER DEFAULT 0
-)
-""")
-conn.commit()
-
-# === ПАМЯТЬ ===
+# ====== БАЗА (в памяти) ======
 user_mode = {}
+user_score = {}
+user_question = {}
+premium_users = set()
 
-# === ПРОВЕРКА ПРЕМИУМА ===
+# ====== ВОПРОСЫ (тест) ======
+questions = [
+    {"question": "2+2=?", "options": ["3", "4", "5"], "answer": "4"},
+    {"question": "Столица Казахстана?", "options": ["Алматы", "Астана", "Шымкент"], "answer": "Астана"},
+]
+
+# ====== ПРОВЕРКА ПРЕМИУМА ======
 def is_premium(user_id):
-    cursor.execute("SELECT premium FROM users WHERE user_id=?", (user_id,))
-    row = cursor.fetchone()
-    return row and row[0] == 1
+    return user_id in premium_users
 
-# === СТАРТ ===
-@dp.message_handler(commands=["start"])
+# ====== СТАРТ ======
+@dp.message_handler(commands=['start'])
 async def start(message: types.Message):
-    user_id = message.from_user.id
+    await message.answer("Привет 👋\n\nКоманды:\n/ai - ИИ\n/test - тест\n/premium - премиум")
 
-    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
-    conn.commit()
+# ====== AI РЕЖИМ ======
+@dp.message_handler(commands=['ai'])
+async def ai_mode(message: types.Message):
+    user_mode[message.from_user.id] = "ai"
+    await message.answer("🤖 AI режим включен")
 
-    await message.answer("Привет! Выбери режим:\n/test\n/ai")
-
-# === ТЕСТ РЕЖИМ ===
-@dp.message_handler(commands=["test"])
+# ====== ТЕСТ ======
+@dp.message_handler(commands=['test'])
 async def test_mode(message: types.Message):
     user_id = message.from_user.id
+    user_mode[user_id] = "test"
+    user_score[user_id] = 0
+    user_question[user_id] = 0
 
-    user_mode[user_id] = {
-        "mode": "test",
-        "answer": "4"
-    }
+    q = questions[0]
+    await message.answer(f"{q['question']}\n{q['options']}")
 
-    await message.answer("Сколько будет 2+2?")
+# ====== ПРЕМИУМ ======
+@dp.message_handler(commands=['premium'])
+async def premium(message: types.Message):
+    premium_users.add(message.from_user.id)
+    await message.answer("🔥 Премиум активирован")
 
-# === AI РЕЖИМ ===
-@dp.message_handler(commands=["ai"])
-async def ai_mode(message: types.Message):
-    user_id = message.from_user.id
-    user_mode[user_id] = "ai"
-
-    await message.answer("Задай вопрос")
-
-# === ОСНОВНОЙ ОБРАБОТЧИК ===
+# ====== ОБРАБОТЧИК ======
 @dp.message_handler()
 async def handle_message(message: types.Message):
     user_id = message.from_user.id
     text = message.text
 
-    # ===== ПРОВЕРКА ТЕСТА =====
-    if user_id in user_mode and isinstance(user_mode[user_id], dict):
-        if user_mode[user_id].get("mode") == "test":
-            correct = user_mode[user_id]["answer"]
-
-            if text == correct:
-                await message.answer("✅ Правильно!")
-            else:
-                await message.answer(f"❌ Неправильно. Ответ: {correct}")
-
-            user_mode[user_id] = {}
-            return
-
-    await bot.send_chat_action(user_id, "typing")
-
-    # ===== ТЕСТ =====
-    if user_id in user_mode and isinstance(user_mode[user_id], dict):
-        q = user_mode[user_id]
-
-        if text == q["answer"]:
-            await message.answer("✅ Правильно!")
-            cursor.execute(
-                "UPDATE users SET score = score + 1 WHERE user_id=?",
-                (user_id,)
-            )
-            conn.commit()
-        else:
-            await message.answer(f"❌ Неправильно. Ответ: {q['answer']}")
-
-        del user_mode[user_id]
-        return
-
-    # ===== ИИ =====
+    # ==== AI ====
     if user_mode.get(user_id) == "ai":
         await bot.send_chat_action(user_id, "typing")
 
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "Ты помощник по ЕНТ. Отвечай кратко и понятно."},
+                {"role": "system", "content": "Ты помощник по ЕНТ. Отвечай кратко."},
                 {"role": "user", "content": text}
             ]
         )
@@ -117,12 +79,36 @@ async def handle_message(message: types.Message):
         await message.answer(response.choices[0].message.content)
         return
 
-    # ===== ПРЕМИУМ =====
+    # ==== ТЕСТ ====
+    if user_mode.get(user_id) == "test":
+        q_index = user_question[user_id]
+        q = questions[q_index]
+
+        if text == q["answer"]:
+            user_score[user_id] += 1
+            await message.answer("✅ Верно!")
+        else:
+            await message.answer(f"❌ Неверно! Ответ: {q['answer']}")
+
+        user_question[user_id] += 1
+
+        if user_question[user_id] >= len(questions):
+            await message.answer(f"Тест завершен 🎉\nБаллы: {user_score[user_id]}")
+            user_mode[user_id] = "default"
+            return
+
+        next_q = questions[user_question[user_id]]
+        await message.answer(f"{next_q['question']}\n{next_q['options']}")
+        return
+
+    # ==== ПРЕМИУМ ====
     if user_mode.get(user_id) == "premium":
         if not is_premium(user_id):
             await message.answer("❌ Купи премиум")
             return
 
-# === ЗАПУСК ===
+    await message.answer("Напиши /ai или /test")
+
+# ====== ЗАПУСК ======
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
