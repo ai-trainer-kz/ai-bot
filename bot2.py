@@ -64,8 +64,8 @@ async def handle_message(message: types.Message):
     user_id = message.from_user.id
     text = message.text
 
-    # ==== AI ====
-    if user_mode.get(user_id) == "ai":
+     # ==== AI ====
+     if user_mode.get(user_id) == "ai":
         await bot.send_chat_action(user_id, "typing")
 
         response = client.chat.completions.create(
