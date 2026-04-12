@@ -143,7 +143,7 @@ if user_id in user_mode and isinstance(user_mode[user_id], dict):
 
     bot.send_chat_action(user_id, "typing")
     # ===== ТЕСТ =====
-    if user_id in user_mode and isinstance(user_mode[user_id], dict):
+if user_id in user_mode and isinstance(user_mode[user_id], dict):
     q = user_mode[user_id]
 
     if text == q["answer"]:
