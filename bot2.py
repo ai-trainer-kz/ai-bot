@@ -92,8 +92,8 @@ async def handle_message(message: types.Message):
         user_question[user_id] += 1
         if user_question[user_id] >= len(questions):
               await message.answer(f"Тест завершен 🎉\nБаллы: {user_score[user_id]}")
-            user_mode[user_id] = "default"
-            return
+              user_mode[user_id] = "default"
+              return
 
         next_q = questions[user_question[user_id]]
         await message.answer(f"{next_q['question']}\n{next_q['options']}")
