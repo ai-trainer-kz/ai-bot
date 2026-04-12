@@ -141,52 +141,46 @@ if user_id in user_mode and isinstance(user_mode[user_id], dict):
         user_mode[user_id] = {}
         return
 
-    bot.send_chat_action(user_id, "typing")
-    # ===== ТЕСТ =====
-if user_id in user_mode and isinstance(user_mode[user_id], dict):
-     q = user_mode[user_id]
+bot.send_chat_action(user_id, "typing")
 
-        if text == q["answer"]:
-           bot.send_message(user_id, "✅ Правильно!")
-           cursor.execute("UPDATE users SET score = score + 1 WHERE user_id=?", (user_id,))
-         conn.commit()
+# ===== ТЕСТ =====
+if user_id in user_mode and isinstance(user_mode[user_id], dict):
+    q = user_mode[user_id]
+
+    if text == q["answer"]:
+        bot.send_message(user_id, "✅ Правильно!")
+        cursor.execute(
+            "UPDATE users SET score = score + 1 WHERE user_id=?",
+            (user_id,)
+        )
+        conn.commit()
     else:
         bot.send_message(user_id, f"❌ Неправильно. Ответ: {q['answer']}")
 
     del user_mode[user_id]
     return
 
-    # ===== ИИ =====
-    if user_mode.get(user_id) == "ai":
-        bot.send_chat_action(chat_id, "typing")
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Ты помощник по ЕНТ. Отвечай кратко и понятно."},
-                {"role": "user", "content": text}
-            ]
-        )
+# ===== ИИ =====
+if user_mode.get(user_id) == "ai":
+    bot.send_chat_action(chat_id, "typing")
 
-        bot.send_message(user_id, response.choices[0].message.content)
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "Ты помощник по ЕНТ. Отвечай кратко и понятно."},
+            {"role": "user", "content": text}
+        ]
+    )
+
+    bot.send_message(user_id, response.choices[0].message.content)
+    return
+
+# ===== ПРЕМИУМ =====
+if user_mode.get(user_id) == "premium":
+    if not is_premium(user_id):
+        bot.send_message(user_id, "❌ Купи премиум")
         return
-
-    # ===== ПРЕМИУМ =====
-    if user_mode.get(user_id) == "premium":
-        if not is_premium(user_id):
-            bot.send_message(user_id, "❌ Купи премиум")
-            return
-
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Ты продвинутый репетитор ЕНТ. Дай подробный ответ."},
-                {"role": "user", "content": text}
-            ]
-        )
-
-        bot.send_message(user_id, response.choices[0].message.content)
-        return
-
+   
     # ===== ГОЛОС =====
     if user_mode.get(user_id) == "voice":
         tts = gTTS(text=text, lang='ru')
