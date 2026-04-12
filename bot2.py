@@ -63,12 +63,11 @@ async def premium(message: types.Message):
 async def handle_message(message: types.Message):
     user_id = message.from_user.id
     text = message.text
+ # ==== AI ====
+ if user_mode.get(user_id) == "ai":
+     await bot.send_chat_action(user_id, "typing")
 
-     # ==== AI ====
-     if user_mode.get(user_id) == "ai":
-         await bot.send_chat_action(user_id, "typing")
-
-         response = client.chat.completions.create(
+           response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "Ты помощник по ЕНТ. Отвечай кратко."},
