@@ -62,6 +62,7 @@ start_test_kb.add("➡️ Начать тест")
 
 answers_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 answers_kb.add("A", "B", "C", "D")
+answers_kb.add("🔙 Назад")
 
 # ====== СТАРТ ======
 @dp.message_handler(commands=["start"])
@@ -69,10 +70,17 @@ async def start(msg: types.Message):
     await msg.answer("Привет! Я AI-тренер 💪", reply_markup=main_kb)
 
 # ====== ТЕСТ ======
-@dp.message_handler(lambda msg: msg.text == "▶️ Тест")
-async def go_to_subject(msg: types.Message):
-    await msg.answer("Выбери предмет 👇", reply_markup=subjects_kb)
+@dp.message_handler(lambda msg: msg.text == "🔙 Назад")
+async def go_back(msg: types.Message):
+    uid = str(msg.from_user.id)
 
+    if uid in users:
+        users[uid].pop("last_question", None)
+        users[uid].pop("subject", None)
+        users[uid].pop("difficulty", None)
+        save_users()
+
+    await msg.answer("Выбери предмет 👇", reply_markup=subjects_kb)
 # ====== ПРЕДМЕТ ======
 @dp.message_handler(lambda msg: msg.text in ["Математика", "История", "Биология", "Қазақ тілі"])
 async def choose_subject(msg: types.Message):
