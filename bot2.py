@@ -3,7 +3,7 @@ import logging
 import json
 
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup
 from aiogram.utils import executor
 
 from openai import OpenAI
@@ -12,7 +12,6 @@ from openai import OpenAI
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# ====== ЛОГИ ======
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=BOT_TOKEN)
@@ -53,51 +52,67 @@ main_kb.add("📊 Профиль")
 subjects_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 subjects_kb.add("Математика", "История")
 subjects_kb.add("Биология", "Қазақ тілі")
+subjects_kb.add("Физика", "Химия")  # ДОБАВИЛИ
 
 level_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 level_kb.add("Лёгкий", "Средний", "Сложный")
 
 start_test_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 start_test_kb.add("➡️ Начать тест")
+start_test_kb.add("🔙 Назад")
 
 answers_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 answers_kb.add("A", "B", "C", "D")
+answers_kb.add("🔙 Назад", "🛑 Завершить")  # ДОБАВИЛИ
 
 # ====== СТАРТ ======
 @dp.message_handler(commands=["start"])
 async def start(msg: types.Message):
     await msg.answer("Привет! Я AI-тренер 💪", reply_markup=main_kb)
 
-# ====== ТЕСТ ======
-@dp.message_handler(lambda msg: msg.text == "▶️ Тест")
+# ====== МЕНЮ ======
+@dp.message_handler(lambda msg: msg.text in ["🚀 Начать", "▶️ Тест"])
 async def go_to_subject(msg: types.Message):
     await msg.answer("Выбери предмет 👇", reply_markup=subjects_kb)
 
 # ====== ПРЕДМЕТ ======
-@dp.message_handler(lambda msg: msg.text in ["Математика", "История", "Биология", "Қазақ тілі"])
+@dp.message_handler(lambda msg: msg.text in ["Математика","История","Биология","Қазақ тілі","Физика","Химия"])
 async def choose_subject(msg: types.Message):
     uid = str(msg.from_user.id)
 
-    if uid not in users:
-        users[uid] = {}
-
+    users[uid] = users.get(uid, {})
     users[uid]["subject"] = msg.text
     save_users()
 
     await msg.answer("Выбери уровень:", reply_markup=level_kb)
 
 # ====== УРОВЕНЬ ======
-@dp.message_handler(lambda msg: msg.text in ["Лёгкий", "Средний", "Сложный"])
+@dp.message_handler(lambda msg: msg.text in ["Лёгкий","Средний","Сложный"])
 async def choose_level(msg: types.Message):
     uid = str(msg.from_user.id)
-
-    if uid not in users:
-        users[uid] = {}
 
     users[uid]["difficulty"] = msg.text
     save_users()
 
     await msg.answer("Нажми ➡️ Начать тест", reply_markup=start_test_kb)
+
+# ====== НАЗАД ======
+@dp.message_handler(lambda msg: msg.text == "🔙 Назад")
+async def go_back(msg: types.Message):
+    uid = str(msg.from_user.id)
+
+    if uid in users:
+        users[uid].pop("subject", None)
+        users[uid].pop("difficulty", None)
+        users[uid].pop("last_question", None)
+        save_users()
+
+    await msg.answer("Выбери предмет 👇", reply_markup=subjects_kb)
+
+# ====== ЗАВЕРШИТЬ ======
+@dp.message_handler(lambda msg: msg.text == "🛑 Завершить")
+async def stop_test(msg: types.Message):
+    await msg.answer("Тест завершён 👍", reply_markup=main_kb)
 
 # ====== СТАРТ ТЕСТА ======
 @dp.message_handler(lambda msg: msg.text == "➡️ Начать тест")
@@ -126,8 +141,8 @@ async def start_test(msg: types.Message):
 
     await msg.answer(question, reply_markup=answers_kb)
 
-# ====== ОТВЕТ A B C D ======
-@dp.message_handler(lambda msg: msg.text in ["A", "B", "C", "D"])
+# ====== ОТВЕТ ======
+@dp.message_handler(lambda msg: msg.text in ["A","B","C","D"])
 async def handle_answer(msg: types.Message):
     uid = str(msg.from_user.id)
     user = users.get(uid)
@@ -136,7 +151,6 @@ async def handle_answer(msg: types.Message):
         await msg.answer("Сначала начни тест 👆")
         return
 
-    # Проверка ответа
     prompt = f"""
 Вопрос:
 {user['last_question']}
@@ -160,7 +174,6 @@ async def handle_answer(msg: types.Message):
 
     result = response.choices[0].message.content
 
-    # Новый вопрос
     prompt2 = f"Задай следующий вопрос по теме {user['subject']}, уровень {user['difficulty']}"
 
     response2 = client.chat.completions.create(
@@ -185,9 +198,7 @@ async def handle_answer(msg: types.Message):
 async def profile(msg: types.Message):
     uid = str(msg.from_user.id)
 
-    if uid not in users:
-        users[uid] = {"xp": 0, "level": 1, "streak": 0}
-
+    users[uid] = users.get(uid, {"xp": 0, "level": 1, "streak": 0})
     user = users[uid]
 
     text = f"""
