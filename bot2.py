@@ -5,14 +5,15 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils import executor
 
-# ====== ВСТАВЬ СВОИ КЛЮЧИ ======
-bot = Bot(token=BOT_TOKEN)
-openai.api_key = "ТВОЙ_OPENAI_KEY"
+# ====== КЛЮЧИ ======
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # ====== ЛОГИ ======
 logging.basicConfig(level=logging.INFO)
 
-bot = Bot(token=API_TOKEN)
+# ====== БОТ ======
+bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 
 # ====== ПАМЯТЬ ПОЛЬЗОВАТЕЛЯ ======
