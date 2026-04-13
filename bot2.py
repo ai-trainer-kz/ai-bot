@@ -34,6 +34,8 @@ def save_users():
 users = load_users()
 
 # ====== GPT ======
+from openai import OpenAI
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 SYSTEM_PROMPT = """
 Ты — AI-тренер для подготовки к ЕНТ.
 Задавай 1 вопрос с 4 вариантами ответа (A, B, C, D).
@@ -125,19 +127,19 @@ async def start_test(msg: types.Message):
 
     prompt = f"Задай вопрос по теме {user['subject']}, уровень {user['difficulty']}"
 
-    response = openai.ChatCompletion.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt}
-        ]
-    )
+    response = client.chat.completions.create(
+       model="gpt-4o-mini",
+       messages=[
+           {"role": "system", "content": SYSTEM_PROMPT},
+           {"role": "user", "content": prompt}
+      ]
+   )
 
-    question = response.choices[0].message.content
-    user["last_question"] = question
-    save_users()
+   question = response.choices[0].message.content
+     user["last_question"] = question
+     save_users()
 
-    await msg.answer(question)
+     await msg.answer(question)
 
 # ====== ОТВЕТ ======
 @dp.message_handler()
