@@ -1,8 +1,9 @@
 import os
+import json
 import logging
 import openai
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup
 from aiogram.utils import executor
 
 # ====== КЛЮЧИ ======
@@ -12,75 +13,118 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 # ====== ЛОГИ ======
 logging.basicConfig(level=logging.INFO)
 
-# ====== БОТ ======
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 
-# ====== ПАМЯТЬ ПОЛЬЗОВАТЕЛЯ ======
-users = {}
+# ====== ФАЙЛ ДАННЫХ ======
+DATA_FILE = "users.json"
+
+def load_users():
+    try:
+        with open(DATA_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {}
+
+def save_users():
+    with open(DATA_FILE, "w") as f:
+        json.dump(users, f)
+
+users = load_users()
 
 # ====== КНОПКИ ======
 start_kb = ReplyKeyboardMarkup(resize_keyboard=True)
-start_kb.add(KeyboardButton("🚀 Начать"))
+start_kb.add("🚀 Начать", "📊 Профиль")
 
 subjects_kb = ReplyKeyboardMarkup(resize_keyboard=True)
-subjects_kb.add("📐 Математика", "📜 История")
+subjects_kb.add("📐 Математика", "📜 История", "🧬 Биология")
+subjects_kb.add("⚛️ Физика", "🧪 Химия", "🌍 География")
+subjects_kb.add("📚 Литература", "🇬🇧 Английский", "🇰🇿 Қазақ тілі")
 
 levels_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 levels_kb.add("🟢 Лёгкий", "🟡 Средний", "🔴 Сложный")
 
-# ====== PROMPT (СЕРДЦЕ БОТА) ======
+# ====== PROMPT ======
 SYSTEM_PROMPT = """
-Ты — AI-тренер как Duolingo.
+Ты AI-тренер как Duolingo.
 
 Правила:
-1. Один вопрос за раз.
-2. Жди ответ пользователя.
-3. После ответа:
-   - Правильно → "Правильно! 👍"
-   - Неправильно → "Неправильно. Правильный ответ: ..."
-4. НЕ объясняй подробно!
-5. Коротко! (1-2 предложения)
-6. После ответа всегда:
-   "Следующий вопрос? 🔥"
-7. Не повторяй вопросы.
-8. Учитывай уровень сложности.
-9. Если пользователь не ответил:
-   "Попробуй ответить выше 👆"
+- 1 вопрос
+- коротко
+- проверка: правильно/неправильно
+- без объяснений
+- потом новый вопрос
 """
+
+# ====== XP ======
+def add_xp(user, correct):
+    if correct:
+        user["xp"] += 10
+        user["streak"] += 1
+    else:
+        user["streak"] = 0
+
+    if user["xp"] >= user["level"] * 50:
+        user["level"] += 1
+        return True
+    return False
 
 # ====== СТАРТ ======
 @dp.message_handler(commands=['start'])
 async def start(msg: types.Message):
-    users[msg.from_user.id] = {}
-    await msg.answer("Привет! Я твой AI-тренер 💪", reply_markup=start_kb)
+    uid = str(msg.from_user.id)
+
+    if uid not in users:
+        users[uid] = {
+            "xp": 0,
+            "level": 1,
+            "streak": 0
+        }
+        save_users()
+
+    await msg.answer("Привет! Я AI-тренер 💪", reply_markup=start_kb)
+
+# ====== ПРОФИЛЬ ======
+@dp.message_handler(lambda msg: msg.text == "📊 Профиль")
+async def profile(msg: types.Message):
+    uid = str(msg.from_user.id)
+    u = users.get(uid)
+
+    text = f"""
+📊 Профиль:
+
+🏆 Уровень: {u['level']}
+⭐ XP: {u['xp']}
+🔥 Серия: {u['streak']}
+"""
+    await msg.answer(text)
 
 # ====== НАЧАТЬ ======
 @dp.message_handler(lambda msg: msg.text == "🚀 Начать")
 async def choose_subject(msg: types.Message):
     await msg.answer("Выбери предмет:", reply_markup=subjects_kb)
 
-# ====== ВЫБОР ПРЕДМЕТА ======
-@dp.message_handler(lambda msg: msg.text in ["📐 Математика", "📜 История"])
+# ====== ПРЕДМЕТ ======
+@dp.message_handler(lambda msg: msg.text in [
+    "📐 Математика","📜 История","🧬 Биология",
+    "⚛️ Физика","🧪 Химия","🌍 География",
+    "📚 Литература","🇬🇧 Английский","🇰🇿 Қазақ тілі"
+])
 async def choose_level(msg: types.Message):
-    users[msg.from_user.id]["subject"] = msg.text
+    uid = str(msg.from_user.id)
+    users[uid]["subject"] = msg.text
+    save_users()
     await msg.answer("Выбери уровень:", reply_markup=levels_kb)
 
-# ====== ВЫБОР УРОВНЯ ======
-@dp.message_handler(lambda msg: msg.text in ["🟢 Лёгкий", "🟡 Средний", "🔴 Сложный"])
+# ====== УРОВЕНЬ ======
+@dp.message_handler(lambda msg: msg.text in ["🟢 Лёгкий","🟡 Средний","🔴 Сложный"])
 async def start_training(msg: types.Message):
-    user_id = msg.from_user.id
-    users[user_id]["level"] = msg.text
+    uid = str(msg.from_user.id)
+    user = users[uid]
 
-    subject = users[user_id]["subject"]
-    level = users[user_id]["level"]
+    user["difficulty"] = msg.text
 
-    prompt = f"""
-Ты задаёшь первый вопрос по теме: {subject}
-Уровень: {level}
-
-Задай короткий вопрос.
-"""
+    prompt = f"Задай вопрос по теме {user['subject']}, уровень {msg.text}"
 
     response = openai.ChatCompletion.create(
         model="gpt-4o-mini",
@@ -90,30 +134,26 @@ async def start_training(msg: types.Message):
         ]
     )
 
-    question = response.choices[0].message.content
-    users[user_id]["last_question"] = question
+    q = response.choices[0].message.content
+    user["last_question"] = q
+    save_users()
 
-    await msg.answer(question)
+    await msg.answer(q)
 
-# ====== ОБРАБОТКА ОТВЕТОВ ======
+# ====== ОТВЕТ ======
 @dp.message_handler()
 async def handle_answer(msg: types.Message):
-    user_id = msg.from_user.id
+    uid = str(msg.from_user.id)
+    user = users.get(uid)
 
-    if user_id not in users or "last_question" not in users[user_id]:
-        await msg.answer("Нажми «Начать» 🚀")
+    if not user or "last_question" not in user:
         return
 
-    question = users[user_id]["last_question"]
-    subject = users[user_id]["subject"]
-    level = users[user_id]["level"]
-
     prompt = f"""
-Вопрос: {question}
-Ответ пользователя: {msg.text}
+Вопрос: {user['last_question']}
+Ответ: {msg.text}
 
-Проверь ответ.
-Потом задай новый вопрос по теме: {subject}, уровень: {level}
+Проверь коротко и задай новый вопрос.
 """
 
     response = openai.ChatCompletion.create(
@@ -124,10 +164,21 @@ async def handle_answer(msg: types.Message):
         ]
     )
 
-    answer = response.choices[0].message.content
-    users[user_id]["last_question"] = answer
+    text = response.choices[0].message.content
 
-    await msg.answer(answer)
+    correct = "Правильно" in text
+
+    level_up = add_xp(user, correct)
+
+    user["last_question"] = text
+    save_users()
+
+    stats = f"\n\n⭐ XP: {user['xp']} | 🔥 {user['streak']}"
+
+    await msg.answer(text + stats)
+
+    if level_up:
+        await msg.answer(f"🏆 Новый уровень: {user['level']}!")
 
 # ====== ЗАПУСК ======
 if __name__ == "__main__":
