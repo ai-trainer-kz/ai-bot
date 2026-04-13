@@ -128,18 +128,19 @@ async def start_test(msg: types.Message):
     prompt = f"Задай вопрос по теме {user['subject']}, уровень {user['difficulty']}"
 
     response = client.chat.completions.create(
-       model="gpt-4o-mini",
-       messages=[
-           {"role": "system", "content": SYSTEM_PROMPT},
-           {"role": "user", "content": prompt}
-      ]
-   )
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ]
+    )
 
-   question = response.choices[0].message.content
-     user["last_question"] = question
-     save_users()
+    question = response.choices[0].message.content
 
-     await msg.answer(question)
+    user["last_question"] = question
+    save_users()
+
+    await msg.answer(question)
 
 # ====== ОТВЕТ ======
 @dp.message_handler()
