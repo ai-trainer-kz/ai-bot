@@ -6,7 +6,7 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils import executor
 
 # ====== ВСТАВЬ СВОИ КЛЮЧИ ======
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+bot = Bot(token=BOT_TOKEN)
 openai.api_key = "ТВОЙ_OPENAI_KEY"
 
 # ====== ЛОГИ ======
