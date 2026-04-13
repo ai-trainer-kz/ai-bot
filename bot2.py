@@ -102,15 +102,7 @@ async def profile(msg: types.Message):
     await msg.answer(text)
 
 # ====== НАЧАТЬ ======
-@dp.message_handler(lambda msg: msg.text == "🚀 Начать")
-async def choose_subject(msg: types.Message):
-    await msg.answer("Выбери предмет:", reply_markup=subjects_kb)
-
-
-@dp.message_handler(lambda msg: "тест" in msg.text.lower())
-async def go_to_subject(msg: types.Message):
-    await msg.answer("Выбери предмет 👇", reply_markup=subjects_kb)
-
+@dp.message_handler(lambda msg: msg.text == "➡️ Начать тест")
 async def start_test(msg: types.Message):
     uid = str(msg.from_user.id)
     user = users.get(uid)
@@ -137,6 +129,7 @@ async def start_test(msg: types.Message):
     save_users()
 
     await msg.answer(q)
+
 # ====== ПРЕДМЕТ ======
 @dp.message_handler(lambda msg: msg.text in [
     "📐 Математика","📜 История","🧬 Биология",
