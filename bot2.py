@@ -43,6 +43,7 @@ subjects_kb.add("📚 Литература", "🇬🇧 Английский", "�
 
 levels_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 levels_kb.add("🟢 Лёгкий", "🟡 Средний", "🔴 Сложный")
+levels_kb.add("➡️ Начать тест")
 
 # ====== PROMPT ======
 SYSTEM_PROMPT = """
@@ -100,10 +101,31 @@ async def profile(msg: types.Message):
     await msg.answer(text)
 
 # ====== НАЧАТЬ ======
-@dp.message_handler(lambda msg: msg.text == "🚀 Начать")
-async def choose_subject(msg: types.Message):
-    await msg.answer("Выбери предмет:", reply_markup=subjects_kb)
+@dp.message_handler(lambda msg: msg.text == "↩️ Начать тест")
+async def start_test(msg: types.Message):
+    uid = str(msg.from_user.id)
+    user = users.get(uid)
+    if not user:
+        return
+    if "subject" not in user or "difficulty" not in user:
+        await msg.answer("Сначала выбери предмет и уровень 👆")
+        return
 
+    prompt = f"Задай вопрос по теме {user['subject']}, уровень {user['difficulty']}"
+
+    response = openai.ChatCompletion.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ]
+    )
+
+    q = response.choices[0].message.content
+    user["last_question"] = q
+    save_users()
+
+    await msg.answer(q)
 # ====== ПРЕДМЕТ ======
 @dp.message_handler(lambda msg: msg.text in [
     "📐 Математика","📜 История","🧬 Биология",
