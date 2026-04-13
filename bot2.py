@@ -85,6 +85,8 @@ async def profile(msg: types.Message):
     await msg.answer(text)
 
 # ====== КНОПКА ТЕСТ ======
+answers_kb = ReplyKeyboardMarkup(resize_keyboard=True)
+answers_kb.add("A", "B", "C", "D")
 @dp.message_handler(lambda msg: msg.text == "▶️ Тест")
 async def go_to_subject(msg: types.Message):
     await msg.answer("Выбери предмет 👇", reply_markup=subjects_kb)
@@ -116,16 +118,27 @@ async def choose_level(msg: types.Message):
     await msg.answer("Нажми ➡️ Начать тест", reply_markup=start_test_kb)
 
 # ====== СТАРТ ТЕСТА ======
-@dp.message_handler(lambda msg: msg.text == "➡️ Начать тест")
-async def start_test(msg: types.Message):
+@dp.message_handler(lambda msg: msg.text in ["A", "B", "C", "D"])
+async def handle_answer(msg: types.Message):
     uid = str(msg.from_user.id)
     user = users.get(uid)
 
-    if not user or "subject" not in user or "difficulty" not in user:
-        await msg.answer("Сначала выбери предмет и уровень 👆")
+    if not user or "last_question" not in user:
+        await msg.answer("Сначала начни тест 👆")
         return
 
-    prompt = f"Задай вопрос по теме {user['subject']}, уровень {user['difficulty']}"
+    prompt = f"""
+Вопрос:
+{user['last_question']}
+
+Ответ пользователя:
+{msg.text}
+
+Скажи:
+1. Правильно или нет
+2. Правильный ответ
+3. Короткое объяснение
+"""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -135,13 +148,29 @@ async def start_test(msg: types.Message):
         ]
     )
 
-    question = response.choices[0].message.content
+    result = response.choices[0].message.content
 
-    user["last_question"] = question
+    # XP
+    user["xp"] = user.get("xp", 0) + 10
+
+    # ❗ сразу следующий вопрос
+    prompt2 = f"Задай следующий вопрос по теме {user['subject']}, уровень {user['difficulty']}"
+
+    response2 = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt2}
+        ]
+    )
+
+    new_q = response2.choices[0].message.content
+    user["last_question"] = new_q
+
     save_users()
 
-    await msg.answer(question)
-
+    await msg.answer(result)
+    await msg.answer(new_q, reply_markup=answers_kb)
 # ====== ОТВЕТ ======
 @dp.message_handler()
 async def handle_answer(msg: types.Message):
