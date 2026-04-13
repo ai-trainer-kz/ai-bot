@@ -33,7 +33,7 @@ def save_users():
 
 users = load_users()
 
-# ====== GPT ПРОМПТ ======
+# ====== GPT ======
 SYSTEM_PROMPT = """
 Ты — AI-тренер для подготовки к ЕНТ.
 Задавай 1 вопрос с 4 вариантами ответа (A, B, C, D).
@@ -44,7 +44,6 @@ SYSTEM_PROMPT = """
 """
 
 # ====== КНОПКИ ======
-
 main_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 main_kb.add(KeyboardButton("🚀 Начать"), KeyboardButton("▶️ Тест"))
 main_kb.add(KeyboardButton("📊 Профиль"))
@@ -60,16 +59,14 @@ start_test_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 start_test_kb.add("➡️ Начать тест")
 
 # ====== СТАРТ ======
-
 @dp.message_handler(commands=["start"])
 async def start(msg: types.Message):
     await msg.answer("Привет! Я AI-тренер 💪", reply_markup=main_kb)
 
 # ====== ПРОФИЛЬ ======
-
-@dp.message_handler(lambda msg: msg.text == "▶️ Тест")
-async def go_to_subject(msg: types.Message):
-    await msg.answer("Выбери предмет 👇", reply_markup=subjects_kb)
+@dp.message_handler(lambda msg: msg.text == "📊 Профиль")
+async def profile(msg: types.Message):
+    uid = str(msg.from_user.id)
 
     if uid not in users:
         users[uid] = {"xp": 0, "level": 1, "streak": 0}
@@ -83,20 +80,15 @@ async def go_to_subject(msg: types.Message):
 ⭐ XP: {user.get("xp", 0)}
 🔥 Серия: {user.get("streak", 0)}
 """
-
     await msg.answer(text)
 
-# ====== ПЕРЕХОД В ТЕСТ ======
-
+# ====== КНОПКА ТЕСТ ======
 @dp.message_handler(lambda msg: msg.text == "▶️ Тест")
 async def go_to_subject(msg: types.Message):
     await msg.answer("Выбери предмет 👇", reply_markup=subjects_kb)
 
-# ====== ВЫБОР ПРЕДМЕТА ======
-
-@dp.message_handler(lambda msg: msg.text.lower() in [
-    "математика", "история", "биология", "қазақ тілі"
-])
+# ====== ПРЕДМЕТ ======
+@dp.message_handler(lambda msg: msg.text in ["Математика", "История", "Биология", "Қазақ тілі"])
 async def choose_subject(msg: types.Message):
     uid = str(msg.from_user.id)
 
@@ -108,11 +100,8 @@ async def choose_subject(msg: types.Message):
 
     await msg.answer("Выбери уровень:", reply_markup=level_kb)
 
-# ====== ВЫБОР УРОВНЯ ======
-
-@dp.message_handler(lambda msg: msg.text.lower() in [
-    "лёгкий", "средний", "сложный"
-])
+# ====== УРОВЕНЬ ======
+@dp.message_handler(lambda msg: msg.text in ["Лёгкий", "Средний", "Сложный"])
 async def choose_level(msg: types.Message):
     uid = str(msg.from_user.id)
 
@@ -150,8 +139,7 @@ async def start_test(msg: types.Message):
 
     await msg.answer(question)
 
-# ====== ОТВЕТ ПОЛЬЗОВАТЕЛЯ ======
-
+# ====== ОТВЕТ ======
 @dp.message_handler()
 async def handle_answer(msg: types.Message):
     uid = str(msg.from_user.id)
@@ -179,13 +167,11 @@ async def handle_answer(msg: types.Message):
 
     result = response.choices[0].message.content
 
-    # начисление XP
     user["xp"] = user.get("xp", 0) + 10
     save_users()
 
     await msg.answer(result)
 
 # ====== ЗАПУСК ======
-
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
