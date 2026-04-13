@@ -88,7 +88,7 @@ async def go_to_subject(msg: types.Message):
 
 # ====== ПЕРЕХОД В ТЕСТ ======
 
-@dp.message_handler(lambda msg: "тест" in msg.text.lower())
+@dp.message_handler(lambda msg: msg.text == "▶️ Тест")
 async def go_to_subject(msg: types.Message):
     await msg.answer("Выбери предмет 👇", reply_markup=subjects_kb)
 
@@ -125,8 +125,7 @@ async def choose_level(msg: types.Message):
     await msg.answer("Нажми ➡️ Начать тест", reply_markup=start_test_kb)
 
 # ====== СТАРТ ТЕСТА ======
-
-@dp.message_handler(lambda msg: "начать" in msg.text.lower())
+@dp.message_handler(lambda msg: msg.text == "➡️ Начать тест")
 async def start_test(msg: types.Message):
     uid = str(msg.from_user.id)
     user = users.get(uid)
