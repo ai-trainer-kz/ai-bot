@@ -102,12 +102,15 @@ async def profile(msg: types.Message):
     await msg.answer(text)
 
 # ====== НАЧАТЬ ======
-@dp.message_handler(lambda msg: msg.text.lower() in [
-    "начать тест",
-    "начни тест",
-    "тест",
-    "➡️ начать тест"
-])
+@dp.message_handler(lambda msg: msg.text == "🚀 Начать")
+async def choose_subject(msg: types.Message):
+    await msg.answer("Выбери предмет:", reply_markup=subjects_kb)
+
+
+@dp.message_handler(lambda msg: "тест" in msg.text.lower())
+async def go_to_subject(msg: types.Message):
+    await msg.answer("Выбери предмет 👇", reply_markup=subjects_kb)
+
 async def start_test(msg: types.Message):
     uid = str(msg.from_user.id)
     user = users.get(uid)
