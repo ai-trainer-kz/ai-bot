@@ -1,15 +1,16 @@
 import os
 import logging
 import json
-import openai
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils import executor
 
+from openai import OpenAI
+
 # ====== КЛЮЧИ ======
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # ====== ЛОГИ ======
 logging.basicConfig(level=logging.INFO)
@@ -34,21 +35,20 @@ def save_users():
 users = load_users()
 
 # ====== GPT ======
-from openai import OpenAI
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 SYSTEM_PROMPT = """
 Ты — AI-тренер для подготовки к ЕНТ.
 Задавай 1 вопрос с 4 вариантами ответа (A, B, C, D).
 Не пиши ответ сразу.
-После ответа пользователя:
+После ответа:
 - скажи правильно или нет
-- объясни кратко
+- дай правильный ответ
+- коротко объясни
 """
 
 # ====== КНОПКИ ======
 main_kb = ReplyKeyboardMarkup(resize_keyboard=True)
-main_kb.add(KeyboardButton("🚀 Начать"), KeyboardButton("▶️ Тест"))
-main_kb.add(KeyboardButton("📊 Профиль"))
+main_kb.add("🚀 Начать", "▶️ Тест")
+main_kb.add("📊 Профиль")
 
 subjects_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 subjects_kb.add("Математика", "История")
@@ -60,33 +60,15 @@ level_kb.add("Лёгкий", "Средний", "Сложный")
 start_test_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 start_test_kb.add("➡️ Начать тест")
 
+answers_kb = ReplyKeyboardMarkup(resize_keyboard=True)
+answers_kb.add("A", "B", "C", "D")
+
 # ====== СТАРТ ======
 @dp.message_handler(commands=["start"])
 async def start(msg: types.Message):
     await msg.answer("Привет! Я AI-тренер 💪", reply_markup=main_kb)
 
-# ====== ПРОФИЛЬ ======
-@dp.message_handler(lambda msg: msg.text == "📊 Профиль")
-async def profile(msg: types.Message):
-    uid = str(msg.from_user.id)
-
-    if uid not in users:
-        users[uid] = {"xp": 0, "level": 1, "streak": 0}
-
-    user = users[uid]
-
-    text = f"""
-📊 Профиль:
-
-🏆 Уровень: {user.get("level", 1)}
-⭐ XP: {user.get("xp", 0)}
-🔥 Серия: {user.get("streak", 0)}
-"""
-    await msg.answer(text)
-
-# ====== КНОПКА ТЕСТ ======
-answers_kb = ReplyKeyboardMarkup(resize_keyboard=True)
-answers_kb.add("A", "B", "C", "D")
+# ====== ТЕСТ ======
 @dp.message_handler(lambda msg: msg.text == "▶️ Тест")
 async def go_to_subject(msg: types.Message):
     await msg.answer("Выбери предмет 👇", reply_markup=subjects_kb)
@@ -118,6 +100,33 @@ async def choose_level(msg: types.Message):
     await msg.answer("Нажми ➡️ Начать тест", reply_markup=start_test_kb)
 
 # ====== СТАРТ ТЕСТА ======
+@dp.message_handler(lambda msg: msg.text == "➡️ Начать тест")
+async def start_test(msg: types.Message):
+    uid = str(msg.from_user.id)
+    user = users.get(uid)
+
+    if not user or "subject" not in user or "difficulty" not in user:
+        await msg.answer("Сначала выбери предмет и уровень 👆")
+        return
+
+    prompt = f"Задай вопрос по теме {user['subject']}, уровень {user['difficulty']}"
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ]
+    )
+
+    question = response.choices[0].message.content
+
+    user["last_question"] = question
+    save_users()
+
+    await msg.answer(question, reply_markup=answers_kb)
+
+# ====== ОТВЕТ A B C D ======
 @dp.message_handler(lambda msg: msg.text in ["A", "B", "C", "D"])
 async def handle_answer(msg: types.Message):
     uid = str(msg.from_user.id)
@@ -127,6 +136,7 @@ async def handle_answer(msg: types.Message):
         await msg.answer("Сначала начни тест 👆")
         return
 
+    # Проверка ответа
     prompt = f"""
 Вопрос:
 {user['last_question']}
@@ -150,10 +160,7 @@ async def handle_answer(msg: types.Message):
 
     result = response.choices[0].message.content
 
-    # XP
-    user["xp"] = user.get("xp", 0) + 10
-
-    # ❗ сразу следующий вопрос
+    # Новый вопрос
     prompt2 = f"Задай следующий вопрос по теме {user['subject']}, уровень {user['difficulty']}"
 
     response2 = client.chat.completions.create(
@@ -165,44 +172,32 @@ async def handle_answer(msg: types.Message):
     )
 
     new_q = response2.choices[0].message.content
+
     user["last_question"] = new_q
-
-    save_users()
-
-    await msg.answer(result)
-    await msg.answer(new_q, reply_markup=answers_kb)
-# ====== ОТВЕТ ======
-@dp.message_handler()
-async def handle_answer(msg: types.Message):
-    uid = str(msg.from_user.id)
-    user = users.get(uid)
-
-    if not user or "last_question" not in user:
-        return
-
-    prompt = f"""
-Вопрос: {user['last_question']}
-Ответ пользователя: {msg.text}
-
-Скажи:
-- правильно или нет
-- объясни кратко
-"""
-
-    response = openai.ChatCompletion.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt}
-        ]
-    )
-
-    result = response.choices[0].message.content
-
     user["xp"] = user.get("xp", 0) + 10
     save_users()
 
     await msg.answer(result)
+    await msg.answer(new_q, reply_markup=answers_kb)
+
+# ====== ПРОФИЛЬ ======
+@dp.message_handler(lambda msg: msg.text == "📊 Профиль")
+async def profile(msg: types.Message):
+    uid = str(msg.from_user.id)
+
+    if uid not in users:
+        users[uid] = {"xp": 0, "level": 1, "streak": 0}
+
+    user = users[uid]
+
+    text = f"""
+📊 Профиль:
+
+🏆 Уровень: {user.get("level", 1)}
+⭐ XP: {user.get("xp", 0)}
+🔥 Серия: {user.get("streak", 0)}
+"""
+    await msg.answer(text)
 
 # ====== ЗАПУСК ======
 if __name__ == "__main__":
