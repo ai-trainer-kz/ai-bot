@@ -141,6 +141,18 @@ async def choose_level(msg: types.Message):
     save_users()
     await msg.answer("Выбери уровень:", reply_markup=levels_kb)
 
+@dp.message_handler(lambda msg: msg.text in ["📐 Математика", "📜 История", "🧬 Биология", "🇰🇿 Қазақ тілі"])
+async def choose_subject(msg: types.Message):
+    uid = str(msg.from_user.id)
+
+    if uid not in users:
+        users[uid] = {}
+
+    users[uid]["subject"] = msg.text
+    save_users()
+
+    await msg.answer("Выбери уровень:", reply_markup=level_kb)
+
 # ====== УРОВЕНЬ ======
 @dp.message_handler(lambda msg: msg.text in ["🟢 Лёгкий","🟡 Средний","🔴 Сложный"])
 async def start_training(msg: types.Message):
