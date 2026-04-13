@@ -35,6 +35,7 @@ users = load_users()
 # ====== КНОПКИ ======
 start_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 start_kb.add("🚀 Начать", "📊 Профиль")
+start_kb.add("▶️ Тест")
 
 subjects_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 subjects_kb.add("📐 Математика", "📜 История", "🧬 Биология")
@@ -101,12 +102,19 @@ async def profile(msg: types.Message):
     await msg.answer(text)
 
 # ====== НАЧАТЬ ======
-@dp.message_handler(lambda msg: msg.text == "↩️ Начать тест")
+@dp.message_handler(lambda msg: msg.text.lower() in [
+    "начать тест",
+    "начни тест",
+    "тест",
+    "➡️ начать тест"
+])
 async def start_test(msg: types.Message):
     uid = str(msg.from_user.id)
     user = users.get(uid)
+
     if not user:
         return
+
     if "subject" not in user or "difficulty" not in user:
         await msg.answer("Сначала выбери предмет и уровень 👆")
         return
