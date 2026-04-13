@@ -5,7 +5,8 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup
 from aiogram.utils import executor
 
-API_TOKEN = "ТВОЙ_ТОКЕН"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 logging.basicConfig(level=logging.INFO)
 
