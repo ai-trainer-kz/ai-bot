@@ -67,9 +67,9 @@ async def start(msg: types.Message):
 
 # ====== ПРОФИЛЬ ======
 
-@dp.message_handler(lambda msg: "профиль" in msg.text.lower())
-async def profile(msg: types.Message):
-    uid = str(msg.from_user.id)
+@dp.message_handler(lambda msg: msg.text == "▶️ Тест")
+async def go_to_subject(msg: types.Message):
+    await msg.answer("Выбери предмет 👇", reply_markup=subjects_kb)
 
     if uid not in users:
         users[uid] = {"xp": 0, "level": 1, "streak": 0}
