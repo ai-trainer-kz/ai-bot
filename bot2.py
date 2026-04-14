@@ -31,8 +31,7 @@ def save_users():
         json.dump(users, f, ensure_ascii=False, indent=2)
 
 users = load_users()
-ADMIN_ID = 503301815
-
+ADMIN_ID = 8398266271
 FREE_LIMIT = 10
 
 def is_premium(user_id):
