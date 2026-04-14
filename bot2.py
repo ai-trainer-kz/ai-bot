@@ -115,7 +115,7 @@ async def buy(msg: types.Message):
 ПОЛНЫЙ ДОСТУП — 10 000 тг / месяц
 
 Что ты получаешь:
-🔥 Подготовка к ЕНТ без репетитора
+
 Безлимитные задания
 Объяснения как у репетитора
 Подготовка к экзаменам
@@ -124,14 +124,12 @@ async def buy(msg: types.Message):
 Оплата (Kaspi / перевод):
 4400430352720152
 
-Принял заявку 👍
-
-Отправь чек сюда:
+После оплаты отправь чек:
 @ai_teacher1_support
 
-⏱ Обычно открываем доступ в течение 5–10 минут
+После оплаты нажми кнопку ниже
+"""
     await msg.answer(text, reply_markup=pay_kb)
-
 # ====== КНОПКА "Я ОПЛАТИЛ" ======
 @dp.callback_query_handler(lambda c: c.data == "paid")
 async def paid_handler(callback: types.CallbackQuery):
