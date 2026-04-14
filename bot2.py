@@ -343,8 +343,8 @@ async def answer(msg: types.Message):
 
 lang = user.get("lang", "ru")
 
-if lang == "kz":
-    prompt = f"""
+    if lang == "kz":
+        prompt = f"""
 Сұрақ:
 {user['last_question']}
 
@@ -353,8 +353,8 @@ if lang == "kz":
 Дұрыс па, қате ме айт және түсіндір.
 """
 
-elif lang == "en":
-    prompt = f"""
+    elif lang == "en":
+        prompt = f"""
 Question:
 {user['last_question']}
 
@@ -363,15 +363,15 @@ Answer: {msg.text}
 Say if it is correct or not and explain.
 """
 
-else:
-    prompt = f"""
+    else:
+        prompt = f"""
 Вопрос:
 {user['last_question']}
 
 Ответ: {msg.text}
 
 Скажи правильно или нет и объясни.
-""" 
+"""
 lang = user.get("lang", "ru")
 
 system_text = "Отвечай строго на языке пользователя."
