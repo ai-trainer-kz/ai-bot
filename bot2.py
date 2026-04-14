@@ -148,11 +148,11 @@ ID: {user.id}
 
     # 🔥 КНОПКА ДЛЯ АДМИНА
     admin_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text="✅ Выдать доступ",
-            callback_data=f"give_{user.id}"
-        )]
-    ])
+    [
+        InlineKeyboardButton(text="⚡ 7 дней", callback_data=f"give7_{user.id}"),
+        InlineKeyboardButton(text="🚀 30 дней", callback_data=f"give30_{user.id}")
+    ]
+])
 
     await bot.send_message(ADMIN_ID, text, reply_markup=admin_kb)
 
@@ -160,37 +160,43 @@ ID: {user.id}
     await callback.answer()
     
 # ====== ЗАБРАТЬ ДОСТУП ======
-@dp.callback_query_handler(lambda c: c.data.startswith("give_"))
-async def give_access_callback(callback: types.CallbackQuery):
+@dp.callback_query_handler(lambda c: c.data.startswith("give7_"))
+async def give_7(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
         return
 
     user_id = callback.data.split("_")[1]
 
     from datetime import datetime, timedelta
-
-    expires = datetime.now() + timedelta(days=30)
-
-    if user_id not in users:
-        users[user_id] = {
-            "xp": 0,
-            "level": 1,
-            "streak": 0,
-            "lives": 3,
-            "lang": "ru",
-            "free_used": 0
-        }
+    expires = datetime.now() + timedelta(days=7)
 
     users[user_id]["premium"] = True
     users[user_id]["expires"] = expires.strftime("%Y-%m-%d")
 
     save_users()
 
-    await callback.message.answer(f"✅ Доступ выдан {user_id}")
-    await bot.send_message(user_id, "🔥 Доступ открыт! Теперь без ограничений 🚀")
-
+    await callback.message.answer(f"⚡ Доступ на 7 дней выдан {user_id}")
+    await bot.send_message(user_id, "🔥 Доступ на 7 дней открыт!")
     await callback.answer()
 
+@dp.callback_query_handler(lambda c: c.data.startswith("give30_"))
+async def give_30(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+
+    user_id = callback.data.split("_")[1]
+
+    from datetime import datetime, timedelta
+    expires = datetime.now() + timedelta(days=30)
+
+    users[user_id]["premium"] = True
+    users[user_id]["expires"] = expires.strftime("%Y-%m-%d")
+
+    save_users()
+
+    await callback.message.answer(f"🚀 Доступ на 30 дней выдан {user_id}")
+    await bot.send_message(user_id, "🔥 Доступ на 30 дней открыт!")
+    await callback.answer()
 # ====== ЯЗЫК ======
 @dp.message_handler(lambda msg: msg.text in ["Русский 🇷🇺","Қазақ 🇰🇿","English 🇺🇸"])
 async def set_lang(msg: types.Message):
