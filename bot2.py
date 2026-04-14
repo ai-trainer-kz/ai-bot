@@ -31,6 +31,7 @@ def save_users():
         json.dump(users, f, ensure_ascii=False, indent=2)
 
 users = load_users()
+ADMIN_ID = 503301815
 
 # ====== НАСТРОЙКИ ======
 FREE_LIMIT = 10
@@ -96,6 +97,96 @@ level_kb.add("Лёгкий", "Средний", "Сложный")
 answers_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 answers_kb.add("A", "B", "C", "D")
 answers_kb.add("🔙 Назад", "🛑 Завершить")
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+pay_kb = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="✅ Я оплатил", callback_data="paid")]
+])
+
+# ====== АДМИН ФУНКЦИИ ======
+
+@dp.message_handler(commands=["give"])
+async def give_access(msg: types.Message):
+    if msg.from_user.id != ADMIN_ID:
+        return
+
+    try:
+        args = msg.get_args().split()
+        user_id = args[0]
+        days = int(args[1]) if len(args) > 1 else 3
+    except:
+        await msg.answer("Формат: /give user_id 3")
+        return
+
+    expires = datetime.now() + timedelta(days=days)
+
+    if user_id not in users:
+        users[user_id] = {
+            "xp": 0,
+            "level": 1,
+            "streak": 0,
+            "lives": 3,
+            "lang": "ru",
+            "free_used": 0
+        }
+
+    users[user_id]["premium"] = True
+    users[user_id]["expires"] = expires.strftime("%Y-%m-%d")
+
+    save_users()
+
+    await msg.answer(f"✅ Дал доступ {user_id} на {days} дней")
+
+
+@dp.message_handler(commands=["remove"])
+async def remove_access(msg: types.Message):
+    if msg.from_user.id != ADMIN_ID:
+        return
+
+    user_id = msg.get_args()
+
+    if user_id in users:
+        users[user_id]["premium"] = False
+        users[user_id]["expires"] = None
+        save_users()
+
+    await msg.answer(f"❌ Доступ убран у {user_id}")
+
+
+@dp.message_handler(commands=["user"])
+async def get_user(msg: types.Message):
+    if msg.from_user.id != ADMIN_ID:
+        return
+
+    user_id = msg.get_args()
+
+    user = users.get(user_id)
+
+    if not user:
+        await msg.answer("Нет такого пользователя")
+        return
+
+    text = f"""
+ID: {user_id}
+Premium: {user.get('premium')}
+Expires: {user.get('expires')}
+XP: {user.get('xp')}
+"""
+
+    await msg.answer(text)
+
+
+@dp.message_handler(commands=["users"])
+async def show_users(msg: types.Message):
+    if msg.from_user.id != ADMIN_ID:
+        return
+
+    text = "👥 Пользователи:\n\n"
+
+    for uid, u in users.items():
+        text += f"{uid} | premium: {u.get('premium')} | xp: {u.get('xp')}\n"
+
+    await msg.answer(text[:4000])
 
 # ====== СТАРТ ======
 @dp.message_handler(commands=["start"])
@@ -135,18 +226,21 @@ async def buy(msg: types.Message):
 🔥 ПОЛНЫЙ ДОСТУП — 10 000 тг / месяц
 
 Что ты получаешь:
-✅ Безлимитные задания
-✅ Объяснения как у репетитора
-✅ Подготовка к экзаменам
-✅ 24/7 доступ
+text = """
+✅ Безлимитные задания  
+✅ Объяснения как у репетитора  
+✅ Подготовка к экзаменам  
+✅ 24/7 доступ  
 
 💳 Оплата (Kaspi / перевод):
-+7 777 777 77 77
+4400430352720152  
 
-📩 После оплаты отправь чек сюда
-— я открою доступ вручную
+📥 После оплаты отправь чек:
+👉 @ai_teacher1_support  
+
+— я открою доступ вручную 🚀
 """
-    await msg.answer(text)
+    await msg.answer(text, reply_markup=pay_kb)
 
 # ====== МЕНЮ ======
 @dp.message_handler(lambda msg: msg.text in ["🚀 Начать", "▶️ Тест"])
