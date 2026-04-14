@@ -109,6 +109,22 @@ async def start(msg: types.Message):
 
     await msg.answer("Выбери язык 🌍", reply_markup=lang_kb)
 
+# ===== ЯЗЫК =====
+@dp.message_handler(lambda msg: msg.text in ["English 🇺🇸", "Қазақша 🇰🇿", "Русский 🇷🇺"])
+async def set_language(msg: types.Message):
+    uid = str(msg.from_user.id)
+
+    if msg.text == "English 🇺🇸":
+        users[uid]["lang"] = "en"
+    elif msg.text == "Қазақша 🇰🇿":
+        users[uid]["lang"] = "kz"
+    else:
+        users[uid]["lang"] = "ru"
+
+    save_users()
+
+    await msg.answer("✅ Язык сохранён")
+
 # ====== АДМИН ПАНЕЛЬ ======
 @dp.message_handler(commands=["admin"])
 async def admin_panel(msg: types.Message):
@@ -197,6 +213,7 @@ async def give_30(callback: types.CallbackQuery):
     await callback.message.answer(f"🚀 Доступ на 30 дней выдан {user_id}")
     await bot.send_message(user_id, "🔥 Доступ на 30 дней открыт!")
     await callback.answer()
+    
 # ====== ЯЗЫК ======
 @dp.message_handler(lambda msg: msg.text in ["Русский 🇷🇺","Қазақ 🇰🇿","English 🇺🇸"])
 async def set_lang(msg: types.Message):
@@ -250,6 +267,24 @@ ID: {user.id}
     await callback.message.answer("Принял! Отправь чек")
     await callback.answer()
 
+# ====== КУПИТЬ ======
+@dp.callback_query_handler(lambda c: c.data == "buy")
+async def buy_callback(callback: types.CallbackQuery):
+kb = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="🔥 7 дней — 5000", callback_data="buy_7")],
+    [InlineKeyboardButton(text="💎 30 дней — 10000", callback_data="buy_30")],
+    [InlineKeyboardButton(text="🔙 Назад", callback_data="back")]
+])
+
+await callback.message.answer("💎 Выбери тариф:", reply_markup=kb)
+await callback.answer()    
+
+# ====== НАЗАД ======
+@dp.callback_query_handler(lambda c: c.data == "back")
+async def back_callback(callback: types.CallbackQuery):
+    await show_main_menu(callback.message)
+    await callback.answer()
+
 # ====== МЕНЮ ======
 @dp.message_handler(lambda msg: msg.text in ["🚀 Начать", "▶️ Тест"])
 async def menu(msg: types.Message):
@@ -287,27 +322,15 @@ async def send_question(msg):
     user = users[uid]
 
     if not is_premium(uid) and user.get("free_used", 0) >= FREE_LIMIT:
-        await msg.answer("Лимит закончился. Купи доступ")
-        return
+    text = "❌ Лимит закончился\n\nХочешь продолжить обучение? 👇"
 
-    prompt = f"Задай вопрос по теме {user['subject']} (A B C D)"
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💎 Купить доступ", callback_data="buy")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="back")]
+    ])
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role":"user","content":prompt}]
-    )
-
-    q = response.choices[0].message.content
-
-    user["last_question"] = q
-
-    if not is_premium(uid):
-        user["free_used"] += 1
-
-    save_users()
-
-    await msg.answer(q, reply_markup=answers_kb)
-
+    await msg.answer(text, reply_markup=kb)
+    return
 # ====== ОТВЕТ ======
 @dp.message_handler(lambda msg: msg.text in ["A","B","C","D"])
 async def answer(msg: types.Message):
@@ -319,19 +342,52 @@ async def answer(msg: types.Message):
     if "subject" not in user:
         return   
 
+   lang = user.get("lang", "ru")
+
+if lang == "kz":
+    prompt = f"""
+Сұрақ:
+{user['last_question']}
+
+Жауап: {msg.text}
+
+Дұрыс па, қате ме айт және түсіндір.
+"""
+elif lang == "en":
+    prompt = f"""
+Question:
+{user['last_question']}
+
+Answer: {msg.text}
+
+Say if it's correct or not and explain.
+"""
+else:
     prompt = f"""
 Вопрос:
 {user['last_question']}
 
 Ответ: {msg.text}
 
-Скажи правильно или нет и объясни
+Скажи правильно или нет и объясни.
 """
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role":"user","content":prompt}]
-    )
+lang = user.get("lang", "ru")
+
+system_text = "Отвечай строго на языке пользователя."
+
+if lang == "kz":
+    system_text = "Жауапты тек қолданушы таңдаған тілде бер."
+elif lang == "en":
+    system_text = "Answer strictly in the user's selected language."
+
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[
+        {"role": "system", "content": system_text},
+        {"role": "user", "content": prompt}
+    ]
+)
 
     res = response.choices[0].message.content
 
