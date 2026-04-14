@@ -228,6 +228,7 @@ async def buy(msg: types.Message):
 4400430352720152
 
 После оплаты отправь чек:
+После оплаты нажми кнопку "Оплатил"
 @ai_teacher1_support
 """
     await msg.answer(text, reply_markup=pay_kb)
