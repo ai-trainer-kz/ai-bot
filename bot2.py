@@ -134,17 +134,52 @@ async def admin_users(msg: types.Message):
         await msg.answer(text, reply_markup=kb)
 
 # ====== ВЫДАТЬ ДОСТУП ======
+@dp.callback_query_handler(lambda c: c.data == "paid")
+async def paid_handler(callback: types.CallbackQuery):
+    user = callback.from_user
+
+    text = f"""
+💰 Новый платеж!
+
+@{user.username}
+ID: {user.id}
+Имя: {user.full_name}
+"""
+
+    # 🔥 КНОПКА ДЛЯ АДМИНА
+    admin_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="✅ Выдать доступ",
+            callback_data=f"give_{user.id}"
+        )]
+    ])
+
+    await bot.send_message(ADMIN_ID, text, reply_markup=admin_kb)
+
+    await callback.message.answer("Принял! Отправь чек в поддержку")
+    await callback.answer()
+    
+# ====== ЗАБРАТЬ ДОСТУП ======
 @dp.callback_query_handler(lambda c: c.data.startswith("give_"))
-async def give_access(callback: types.CallbackQuery):
+async def give_access_callback(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
         return
 
     user_id = callback.data.split("_")[1]
 
+    from datetime import datetime, timedelta
+
     expires = datetime.now() + timedelta(days=30)
 
     if user_id not in users:
-        users[user_id] = {}
+        users[user_id] = {
+            "xp": 0,
+            "level": 1,
+            "streak": 0,
+            "lives": 3,
+            "lang": "ru",
+            "free_used": 0
+        }
 
     users[user_id]["premium"] = True
     users[user_id]["expires"] = expires.strftime("%Y-%m-%d")
@@ -152,22 +187,8 @@ async def give_access(callback: types.CallbackQuery):
     save_users()
 
     await callback.message.answer(f"✅ Доступ выдан {user_id}")
-    await callback.answer()
+    await bot.send_message(user_id, "🔥 Доступ открыт! Теперь без ограничений 🚀")
 
-# ====== ЗАБРАТЬ ДОСТУП ======
-@dp.callback_query_handler(lambda c: c.data.startswith("remove_"))
-async def remove_access(callback: types.CallbackQuery):
-    if callback.from_user.id != ADMIN_ID:
-        return
-
-    user_id = callback.data.split("_")[1]
-
-    if user_id in users:
-        users[user_id]["premium"] = False
-        users[user_id]["expires"] = None
-        save_users()
-
-    await callback.message.answer(f"❌ Доступ убран у {user_id}")
     await callback.answer()
 
 # ====== ЯЗЫК ======
