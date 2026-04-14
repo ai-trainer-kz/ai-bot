@@ -51,9 +51,19 @@ def t(lang, ru, kz, en):
 def main_kb(lang):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add(
-        t(lang, "🚀 Бастау", "🚀 Бастау", "🚀 Start"),
+        t(lang, "🚀 Старт", "🚀 Бастау", "🚀 Start"),
         t(lang, "📚 Тест", "📚 Тест", "📚 Test"),
         t(lang, "📊 Статистика", "📊 Статистика", "📊 Stats")
+    )
+    return kb
+
+
+def level_kb(lang):
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add(
+        t(lang, "🟢 Лёгкий", "🟢 Жеңіл", "🟢 Easy"),
+        t(lang, "🟡 Средний", "🟡 Орташа", "🟡 Medium"),
+        t(lang, "🔴 Сложный", "🔴 Қиын", "🔴 Hard")
     )
     return kb
 
@@ -62,8 +72,8 @@ def control_kb(lang):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add(
         t(lang, "⬅️ Назад", "⬅️ Артқа", "⬅️ Back"),
-        t(lang, "🏁 Аяқтау", "🏁 Аяқтау", "🏁 Finish"),
-        t(lang, "🏠 Мәзір", "🏠 Мәзір", "🏠 Menu")
+        t(lang, "🏁 Завершить", "🏁 Аяқтау", "🏁 Finish"),
+        t(lang, "🏠 Меню", "🏠 Мәзір", "🏠 Menu")
     )
     kb.add("A", "B", "C", "D")
     return kb
@@ -126,45 +136,44 @@ async def set_lang(msg: types.Message):
 
     lang = users[uid]["lang"]
 
-    await msg.answer(t(lang, "Готово 👍", "Дайын 👍", "Done 👍"),
-                     reply_markup=main_kb(lang))
+    await msg.answer("Готово 👍", reply_markup=main_kb(lang))
 
 
-# ================== СТАТИСТИКА ==================
-@dp.message_handler(lambda msg: msg.text in ["📊 Статистика", "📊 Stats"])
-async def stats(msg: types.Message):
+# ================== СТАРТ (уровни) ==================
+@dp.message_handler(lambda msg: msg.text in ["🚀 Старт", "🚀 Бастау", "🚀 Start"])
+async def choose_level(msg: types.Message):
     uid = str(msg.from_user.id)
-    user = users[uid]
-    lang = user["lang"]
+    lang = users[uid]["lang"]
 
     await msg.answer(
-        t(lang,
-          f"📊 Тестов: {user['total_tests']}\nПравильных: {user['total_correct']}\n🔥 Серия: {user['streak']}",
-          f"📊 Тест саны: {user['total_tests']}\nДұрыс: {user['total_correct']}\n🔥 Серия: {user['streak']}",
-          f"📊 Tests: {user['total_tests']}\nCorrect: {user['total_correct']}\n🔥 Streak: {user['streak']}")
+        t(lang, "Выбери уровень 👇", "Деңгейді таңда 👇", "Choose level 👇"),
+        reply_markup=level_kb(lang)
     )
 
 
-# ================== ТЕСТ ==================
-@dp.message_handler(lambda msg: msg.text in ["📚 Тест", "📚 Test"])
-async def test_start(msg: types.Message):
+# ================== ВЫБОР УРОВНЯ ==================
+@dp.message_handler(lambda msg: msg.text in [
+    "🟢 Лёгкий", "🟡 Средний", "🔴 Сложный",
+    "🟢 Жеңіл", "🟡 Орташа", "🔴 Қиын",
+    "🟢 Easy", "🟡 Medium", "🔴 Hard"
+])
+async def set_level(msg: types.Message):
     uid = str(msg.from_user.id)
-    user = users[uid]
 
-    if user.get("premium") and user.get("expires"):
-        if datetime.now() > datetime.fromisoformat(user["expires"]):
-            user["premium"] = False
+    level_map = {
+        "🟢 Лёгкий": "easy", "🟢 Жеңіл": "easy", "🟢 Easy": "easy",
+        "🟡 Средний": "medium", "🟡 Орташа": "medium", "🟡 Medium": "medium",
+        "🔴 Сложный": "hard", "🔴 Қиын": "hard", "🔴 Hard": "hard"
+    }
 
-    if not user.get("premium") and user["total_tests"] >= 1:
-        await ask_payment(msg)
-        return
-
-    user["q_count"] = 0
-    user["score"] = 0
+    users[uid]["level"] = level_map[msg.text]
+    users[uid]["q_count"] = 0
+    users[uid]["score"] = 0
 
     await send_question(msg)
 
 
+# ================== ВОПРОС ==================
 async def send_question(msg):
     uid = str(msg.from_user.id)
     user = users[uid]
@@ -178,7 +187,7 @@ async def send_question(msg):
         model="gpt-4o-mini",
         messages=[{
             "role": "user",
-            "content": f"Generate 1 test question (A-D) in {lang}. No answer."
+            "content": f"Generate question (A-D), level {user.get('level','medium')} in {lang}. No answer."
         }]
     )
 
@@ -214,7 +223,6 @@ async def answer(msg: types.Message):
         user["streak"] = 0
 
     user["q_count"] += 1
-
     save_users()
 
     await msg.answer(result)
@@ -232,12 +240,13 @@ async def finish_test(msg):
     save_users()
 
     await msg.answer(
-        t(lang,
-          f"🏁 Результат: {user['score']}/10",
-          f"🏁 Нәтиже: {user['score']}/10",
-          f"🏁 Score: {user['score']}/10"),
+        f"🏁 Результат: {user['score']}/10",
         reply_markup=main_kb(lang)
     )
+
+    # 👉 сразу предлагаем оплату
+    if not user.get("premium"):
+        await ask_payment(msg)
 
 
 # ================== ОПЛАТА ==================
@@ -246,7 +255,7 @@ async def ask_payment(msg):
     lang = users[uid]["lang"]
 
     await msg.answer(
-        f"💳 Kaspi: {KASPI_NUMBER}\n\nПосле оплаты нажми кнопку 👇\nПоддержка: {SUPPORT}",
+        f"🔒 Доступ закончился!\n\n💳 Kaspi: {KASPI_NUMBER}\n\nПосле оплаты нажми 'Оплатил'\n\n{SUPPORT}",
         reply_markup=pay_kb(lang)
     )
 
@@ -270,7 +279,6 @@ async def give(callback: types.CallbackQuery):
         return
 
     uid = callback.data.split("_")[1]
-
     days = 7 if "give7" in callback.data else 30
 
     users[uid]["premium"] = True
@@ -283,8 +291,10 @@ async def give(callback: types.CallbackQuery):
 
 
 # ================== МЕНЮ ==================
-@dp.message_handler(lambda msg: msg.text in ["⬅️ Назад", "⬅️ Артқа", "⬅️ Back",
-                                            "🏠 Меню", "🏠 Мәзір", "🏠 Menu"])
+@dp.message_handler(lambda msg: msg.text.lower() in [
+    "⬅️ назад", "⬅️ артқа", "⬅️ back",
+    "🏠 меню", "🏠 мәзір", "🏠 menu"
+])
 async def back(msg: types.Message):
     uid = str(msg.from_user.id)
     lang = users[uid]["lang"]
