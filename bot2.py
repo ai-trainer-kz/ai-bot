@@ -270,11 +270,14 @@ ID: {user.id}
 # ====== КУПИТЬ ======
 @dp.callback_query_handler(lambda c: c.data == "buy")
 async def buy_callback(callback: types.CallbackQuery):
-kb = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="🔥 7 дней — 5000", callback_data="buy_7")],
-    [InlineKeyboardButton(text="💎 30 дней — 10000", callback_data="buy_30")],
-    [InlineKeyboardButton(text="🔙 Назад", callback_data="back")]
-])
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔥 7 дней — 5000", callback_data="buy_7")],
+        [InlineKeyboardButton(text="💎 30 дней — 10000", callback_data="buy_30")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="back")]
+    ])
+
+    await callback.message.answer("💎 Выбери тариф:", reply_markup=kb)
+    await callback.answer()
 
 await callback.message.answer("💎 Выбери тариф:", reply_markup=kb)
 await callback.answer()    
