@@ -341,7 +341,7 @@ async def answer(msg: types.Message):
     uid = str(msg.from_user.id)
     user = users.get(uid)
 
-   lang = user.get("lang", "ru")
+lang = user.get("lang", "ru")
 
 if lang == "kz":
     prompt = f"""
