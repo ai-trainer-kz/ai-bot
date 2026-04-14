@@ -341,14 +341,10 @@ async def answer(msg: types.Message):
     uid = str(msg.from_user.id)
     user = users.get(uid)
 
-    lang = user.get("lang", "ru")  # ← ровно 4 пробела
+   lang = user.get("lang", "ru")
 
-    if lang == "kz":
-        prompt = "..."
-    elif lang == "en":
-        prompt = "..."
-    else:
-        prompt = "..."
+if lang == "kz":
+    prompt = f"""
 Сұрақ:
 {user['last_question']}
 
@@ -356,6 +352,7 @@ async def answer(msg: types.Message):
 
 Дұрыс па, қате ме айт және түсіндір.
 """
+
 elif lang == "en":
     prompt = f"""
 Question:
@@ -363,8 +360,9 @@ Question:
 
 Answer: {msg.text}
 
-Say if it's correct or not and explain.
+Say if it is correct or not and explain.
 """
+
 else:
     prompt = f"""
 Вопрос:
@@ -373,8 +371,7 @@ else:
 Ответ: {msg.text}
 
 Скажи правильно или нет и объясни.
-"""
-
+""" 
 lang = user.get("lang", "ru")
 
 system_text = "Отвечай строго на языке пользователя."
