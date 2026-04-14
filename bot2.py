@@ -1,6 +1,7 @@
 import os
 import logging
 import json
+from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup
@@ -8,7 +9,6 @@ from aiogram.utils import executor
 
 from openai import OpenAI
 
-# ====== КЛЮЧИ ======
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -17,7 +17,6 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 
-# ====== БАЗА ======
 DATA_FILE = "users.json"
 
 def load_users():
@@ -33,182 +32,232 @@ def save_users():
 
 users = load_users()
 
-# ====== GPT ======
-SYSTEM_PROMPT = """
-Ты — AI-тренер для подготовки к ЕНТ.
-Задавай 1 вопрос с 4 вариантами ответа (A, B, C, D).
-Не пиши ответ сразу.
-После ответа:
-- скажи правильно или нет
-- дай правильный ответ
-- коротко объясни
-"""
+# ====== НАСТРОЙКИ ======
+FREE_LIMIT = 10
+
+# ====== ПРОВЕРКА ПРЕМИУМА ======
+def is_premium(user_id):
+    user = users.get(user_id)
+
+    if not user:
+        return False
+
+    if not user.get("premium"):
+        return False
+
+    expires = user.get("expires")
+
+    if not expires:
+        return False
+
+    expires_date = datetime.strptime(expires, "%Y-%m-%d")
+
+    if datetime.now() > expires_date:
+        user["premium"] = False
+        save_users()
+        return False
+
+    return True
+
+# ====== ВЫДАЧА ПРЕМИУМА (вручную) ======
+def give_premium(user_id):
+    expires = datetime.now() + timedelta(days=30)
+
+    users[user_id]["premium"] = True
+    users[user_id]["expires"] = expires.strftime("%Y-%m-%d")
+
+    save_users()
+
+# ====== ТЕКСТЫ ======
+TEXTS = {
+    "ru": {
+        "start": "Привет! Я AI-тренер 💪",
+        "choose_lang": "Выбери язык 🌍",
+        "limit": "❌ Бесплатный лимит закончился.",
+    }
+}
 
 # ====== КНОПКИ ======
+lang_kb = ReplyKeyboardMarkup(resize_keyboard=True)
+lang_kb.add("Русский 🇷🇺", "Қазақ 🇰🇿", "English 🇺🇸")
+
 main_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 main_kb.add("🚀 Начать", "▶️ Тест")
-main_kb.add("📊 Профиль")
+main_kb.add("📊 Профиль", "💰 Купить")
 
 subjects_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 subjects_kb.add("Математика", "История")
 subjects_kb.add("Биология", "Қазақ тілі")
-subjects_kb.add("Физика", "Химия")  # ДОБАВИЛИ
+subjects_kb.add("Физика", "Химия")
 
 level_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 level_kb.add("Лёгкий", "Средний", "Сложный")
 
-start_test_kb = ReplyKeyboardMarkup(resize_keyboard=True)
-start_test_kb.add("➡️ Начать тест")
-start_test_kb.add("🔙 Назад")
-
 answers_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 answers_kb.add("A", "B", "C", "D")
-answers_kb.add("🔙 Назад", "🛑 Завершить")  # ДОБАВИЛИ
+answers_kb.add("🔙 Назад", "🛑 Завершить")
 
 # ====== СТАРТ ======
 @dp.message_handler(commands=["start"])
 async def start(msg: types.Message):
-    await msg.answer("Привет! Я AI-тренер 💪", reply_markup=main_kb)
+    uid = str(msg.from_user.id)
+
+    users[uid] = users.get(uid, {
+        "xp": 0,
+        "level": 1,
+        "streak": 0,
+        "lives": 3,
+        "lang": "ru",
+        "free_used": 0,
+        "premium": False,
+        "expires": None
+    })
+    save_users()
+
+    await msg.answer("Выбери язык 🌍", reply_markup=lang_kb)
+
+# ====== ЯЗЫК ======
+@dp.message_handler(lambda msg: msg.text in ["Русский 🇷🇺","Қазақ 🇰🇿","English 🇺🇸"])
+async def set_lang(msg: types.Message):
+    uid = str(msg.from_user.id)
+
+    lang = "ru" if "Русский" in msg.text else "kz" if "Қазақ" in msg.text else "en"
+
+    users[uid]["lang"] = lang
+    save_users()
+
+    await msg.answer(TEXTS["ru"]["start"], reply_markup=main_kb)
+
+# ====== КУПИТЬ ======
+@dp.message_handler(lambda msg: msg.text == "💰 Купить")
+async def buy(msg: types.Message):
+    text = """
+🔥 ПОЛНЫЙ ДОСТУП — 10 000 тг / месяц
+
+Что ты получаешь:
+✅ Безлимитные задания
+✅ Объяснения как у репетитора
+✅ Подготовка к экзаменам
+✅ 24/7 доступ
+
+💳 Оплата (Kaspi / перевод):
++7 777 777 77 77
+
+📩 После оплаты отправь чек сюда
+— я открою доступ вручную
+"""
+    await msg.answer(text)
 
 # ====== МЕНЮ ======
 @dp.message_handler(lambda msg: msg.text in ["🚀 Начать", "▶️ Тест"])
-async def go_to_subject(msg: types.Message):
+async def menu(msg: types.Message):
     await msg.answer("Выбери предмет 👇", reply_markup=subjects_kb)
 
 # ====== ПРЕДМЕТ ======
 @dp.message_handler(lambda msg: msg.text in ["Математика","История","Биология","Қазақ тілі","Физика","Химия"])
-async def choose_subject(msg: types.Message):
+async def subject(msg: types.Message):
     uid = str(msg.from_user.id)
-
-    users[uid] = users.get(uid, {})
     users[uid]["subject"] = msg.text
     save_users()
-
     await msg.answer("Выбери уровень:", reply_markup=level_kb)
 
 # ====== УРОВЕНЬ ======
 @dp.message_handler(lambda msg: msg.text in ["Лёгкий","Средний","Сложный"])
-async def choose_level(msg: types.Message):
+async def level(msg: types.Message):
     uid = str(msg.from_user.id)
-
     users[uid]["difficulty"] = msg.text
     save_users()
-
-    await msg.answer("Нажми ➡️ Начать тест", reply_markup=start_test_kb)
+    await send_question(msg)
 
 # ====== НАЗАД ======
 @dp.message_handler(lambda msg: msg.text == "🔙 Назад")
-async def go_back(msg: types.Message):
+async def back(msg: types.Message):
     uid = str(msg.from_user.id)
-
-    if uid in users:
-        users[uid].pop("subject", None)
-        users[uid].pop("difficulty", None)
-        users[uid].pop("last_question", None)
-        save_users()
-
+    users[uid].pop("subject", None)
+    users[uid].pop("difficulty", None)
+    save_users()
     await msg.answer("Выбери предмет 👇", reply_markup=subjects_kb)
 
-# ====== ЗАВЕРШИТЬ ======
+# ====== СТОП ======
 @dp.message_handler(lambda msg: msg.text == "🛑 Завершить")
-async def stop_test(msg: types.Message):
+async def stop(msg: types.Message):
     await msg.answer("Тест завершён 👍", reply_markup=main_kb)
 
-# ====== СТАРТ ТЕСТА ======
-@dp.message_handler(lambda msg: msg.text == "➡️ Начать тест")
-async def start_test(msg: types.Message):
+# ====== ВОПРОС ======
+async def send_question(msg):
     uid = str(msg.from_user.id)
-    user = users.get(uid)
+    user = users[uid]
 
-    if not user or "subject" not in user or "difficulty" not in user:
-        await msg.answer("Сначала выбери предмет и уровень 👆")
+    # 🔥 ЛИМИТ + ПРЕМИУМ
+    if not is_premium(uid) and user.get("free_used", 0) >= FREE_LIMIT:
+        await msg.answer(TEXTS["ru"]["limit"] + "\n\nНажми 💰 Купить")
         return
 
-    prompt = f"Задай вопрос по теме {user['subject']}, уровень {user['difficulty']}"
+    prompt = f"""
+Задай вопрос по теме {user['subject']}.
+Язык: {user.get('lang')}
+Формат: A B C D
+"""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt}
-        ]
+        messages=[{"role":"user","content":prompt}]
     )
 
-    question = response.choices[0].message.content
+    q = response.choices[0].message.content
 
-    user["last_question"] = question
+    user["last_question"] = q
+
+    if not is_premium(uid):
+        user["free_used"] = user.get("free_used", 0) + 1
+
     save_users()
 
-    await msg.answer(question, reply_markup=answers_kb)
+    await msg.answer(q, reply_markup=answers_kb)
 
 # ====== ОТВЕТ ======
 @dp.message_handler(lambda msg: msg.text in ["A","B","C","D"])
-async def handle_answer(msg: types.Message):
+async def answer(msg: types.Message):
     uid = str(msg.from_user.id)
-    user = users.get(uid)
-
-    if not user or "last_question" not in user:
-        await msg.answer("Сначала начни тест 👆")
-        return
+    user = users[uid]
 
     prompt = f"""
 Вопрос:
 {user['last_question']}
 
-Ответ пользователя:
+Ответ:
 {msg.text}
 
 Скажи:
-1. Правильно или нет
-2. Правильный ответ
-3. Короткое объяснение
+правильно или нет + объяснение
 """
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt}
-        ]
+        messages=[{"role":"user","content":prompt}]
     )
 
-    result = response.choices[0].message.content
+    res = response.choices[0].message.content
 
-    prompt2 = f"Задай следующий вопрос по теме {user['subject']}, уровень {user['difficulty']}"
+    if "прав" in res.lower():
+        user["xp"] += 10
+        user["streak"] += 1
+    else:
+        user["lives"] -= 1
+        user["streak"] = 0
 
-    response2 = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt2}
-        ]
-    )
+    if user["lives"] <= 0:
+        await msg.answer("💀 Жизни закончились", reply_markup=main_kb)
+        user["lives"] = 3
+        save_users()
+        return
 
-    new_q = response2.choices[0].message.content
-
-    user["last_question"] = new_q
-    user["xp"] = user.get("xp", 0) + 10
     save_users()
 
-    await msg.answer(result)
-    await msg.answer(new_q, reply_markup=answers_kb)
+    await msg.answer(res)
+    await msg.answer(f"🔥 {user['streak']} | ❤️ {user['lives']} | ⭐ {user['xp']}")
 
-# ====== ПРОФИЛЬ ======
-@dp.message_handler(lambda msg: msg.text == "📊 Профиль")
-async def profile(msg: types.Message):
-    uid = str(msg.from_user.id)
-
-    users[uid] = users.get(uid, {"xp": 0, "level": 1, "streak": 0})
-    user = users[uid]
-
-    text = f"""
-📊 Профиль:
-
-🏆 Уровень: {user.get("level", 1)}
-⭐ XP: {user.get("xp", 0)}
-🔥 Серия: {user.get("streak", 0)}
-"""
-    await msg.answer(text)
+    await send_question(msg)
 
 # ====== ЗАПУСК ======
 if __name__ == "__main__":
