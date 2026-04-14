@@ -1,7 +1,7 @@
 import os
 import logging
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
@@ -20,6 +20,15 @@ dp = Dispatcher(bot)
 DATA_FILE = "users.json"
 ADMIN_ID = 8398266271
 FREE_LIMIT = 10
+
+
+# ====== UTILS ======
+def t(lang, ru, kz, en):
+    if lang == "kz":
+        return kz
+    elif lang == "en":
+        return en
+    return ru
 
 
 # ====== DATA ======
@@ -70,6 +79,13 @@ level_kb.add("Лёгкий", "Средний", "Сложный")
 
 answers_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 answers_kb.add("A", "B", "C", "D")
+
+
+def control_kb(lang):
+    return ReplyKeyboardMarkup(resize_keyboard=True).add(
+        t(lang, "⬅️ Назад", "⬅️ Артқа", "⬅️ Back"),
+        t(lang, "🏁 Завершить", "🏁 Аяқтау", "🏁 Finish")
+    )
 
 
 # ====== START ======
@@ -130,7 +146,13 @@ async def buy30(callback: types.CallbackQuery):
 # ====== МЕНЮ ======
 @dp.message_handler(lambda msg: msg.text in ["🚀 Начать", "▶️ Тест"])
 async def menu(msg: types.Message):
-    await msg.answer("Выбери предмет 👇", reply_markup=subjects_kb)
+    uid = str(msg.from_user.id)
+    lang = users[uid].get("lang", "ru")
+
+    await msg.answer(
+        t(lang, "Выбери предмет 👇", "Пәнді таңда 👇", "Choose subject 👇"),
+        reply_markup=subjects_kb
+    )
 
 
 # ====== ПРЕДМЕТ ======
@@ -139,6 +161,7 @@ async def subject(msg: types.Message):
     uid = str(msg.from_user.id)
     users[uid]["subject"] = msg.text
     save_users()
+
     await msg.answer("Выбери уровень:", reply_markup=level_kb)
 
 
@@ -148,6 +171,7 @@ async def level(msg: types.Message):
     uid = str(msg.from_user.id)
     users[uid]["difficulty"] = msg.text
     save_users()
+
     await send_question(msg)
 
 
@@ -156,21 +180,18 @@ async def send_question(msg):
     uid = str(msg.from_user.id)
     user = users[uid]
 
-    if not is_premium(uid) and user.get("free_used", 0) >= FREE_LIMIT:
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💎 Купить", callback_data="buy")]
-        ])
-        await msg.answer("❌ Лимит закончился", reply_markup=kb)
-        return
-
     lang = user.get("lang", "ru")
 
+    if not is_premium(uid) and user.get("free_used", 0) >= FREE_LIMIT:
+        await msg.answer(t(lang, "❌ Лимит закончился", "❌ Лимит бітті", "❌ Limit reached"))
+        return
+
     if lang == "kz":
-        prompt = f"{user['subject']} пәнінен 1 тест сұрағы (A,B,C,D)"
+        prompt = "Тек қазақ тілінде 1 тест сұрағы (A,B,C,D) және дұрыс жауап"
     elif lang == "en":
-        prompt = f"Create 1 test question in {user['subject']} with options A,B,C,D"
+        prompt = "ONLY in English: create 1 test question (A,B,C,D) with correct answer"
     else:
-        prompt = f"Сделай 1 тест вопрос по теме {user['subject']} (A,B,C,D)"
+        prompt = "Сделай 1 тест вопрос (A,B,C,D) и укажи правильный ответ"
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -184,6 +205,7 @@ async def send_question(msg):
         user["free_used"] += 1
 
     save_users()
+
     await msg.answer(q, reply_markup=answers_kb)
 
 
@@ -196,11 +218,11 @@ async def answer(msg: types.Message):
     lang = user.get("lang", "ru")
 
     if lang == "kz":
-        prompt = f"Сұрақ:\n{user['last_question']}\nЖауап:{msg.text}\nДұрыс па?"
+        prompt = f"Сен тек қазақ тілінде жауап бер!\n{user['last_question']}\nЖауап: {msg.text}"
     elif lang == "en":
-        prompt = f"Question:\n{user['last_question']}\nAnswer:{msg.text}\nIs it correct?"
+        prompt = f"You MUST answer ONLY in English!\n{user['last_question']}\nAnswer: {msg.text}"
     else:
-        prompt = f"Вопрос:\n{user['last_question']}\nОтвет:{msg.text}\nПравильно?"
+        prompt = f"{user['last_question']}\nОтвет: {msg.text}"
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -208,8 +230,24 @@ async def answer(msg: types.Message):
     )
 
     res = response.choices[0].message.content
-    await msg.answer(res)
+
+    await msg.answer(res, reply_markup=control_kb(lang))
     await send_question(msg)
+
+
+# ====== КНОПКИ ======
+@dp.message_handler(lambda msg: msg.text in ["⬅️ Назад", "⬅️ Артқа", "⬅️ Back"])
+async def back(msg: types.Message):
+    await menu(msg)
+
+
+@dp.message_handler(lambda msg: msg.text in ["🏁 Завершить", "🏁 Аяқтау", "🏁 Finish"])
+async def finish(msg: types.Message):
+    uid = str(msg.from_user.id)
+    users[uid]["last_question"] = None
+    save_users()
+
+    await msg.answer("✅ Тест завершён", reply_markup=main_kb)
 
 
 # ====== RUN ======
