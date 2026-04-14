@@ -324,7 +324,7 @@ async def send_question(msg):
     uid = str(msg.from_user.id)
     user = users[uid]
 
-    if not is_premium(uid) and user.get("free_used", 0) >= FREE_LIMIT:
+if not is_premium(uid) and user.get("free_used", 0) >= FREE_LIMIT:
     text = "❌ Лимит закончился\n\nХочешь продолжить обучение? 👇"
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -334,6 +334,7 @@ async def send_question(msg):
 
     await msg.answer(text, reply_markup=kb)
     return
+    
 # ====== ОТВЕТ ======
 @dp.message_handler(lambda msg: msg.text in ["A","B","C","D"])
 async def answer(msg: types.Message):
