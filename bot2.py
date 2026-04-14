@@ -341,15 +341,14 @@ async def answer(msg: types.Message):
     uid = str(msg.from_user.id)
     user = users.get(uid)
 
-    if not user or "last_question" not in user:
-        return
-    if "subject" not in user:
-        return   
+    lang = user.get("lang", "ru")  # ← ровно 4 пробела
 
-   lang = user.get("lang", "ru")
-
-if lang == "kz":
-    prompt = f"""
+    if lang == "kz":
+        prompt = "..."
+    elif lang == "en":
+        prompt = "..."
+    else:
+        prompt = "..."
 Сұрақ:
 {user['last_question']}
 
