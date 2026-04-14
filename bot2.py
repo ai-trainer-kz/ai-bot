@@ -69,6 +69,17 @@ subjects_kb.add("Физика", "Химия")
 level_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 level_kb.add("Лёгкий", "Средний", "Сложный")
 
+@dp.message_handler(lambda msg: msg.text == "🛑 Завершить")
+async def stop(msg: types.Message):
+    uid = str(msg.from_user.id)
+
+    users[uid].pop("subject", None)
+    users[uid].pop("difficulty", None)
+
+    save_users()
+
+    await msg.answer("Тест завершён 👍", reply_markup=main_kb)
+
 answers_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 answers_kb.add("A", "B", "C", "D")
 answers_kb.add("🔙 Назад", "🛑 Завершить")
@@ -229,6 +240,16 @@ async def level(msg: types.Message):
     save_users()
     await send_question(msg)
 
+@dp.message_handler(lambda msg: msg.text == "🔙 Назад")
+async def back(msg: types.Message):
+    uid = str(msg.from_user.id)
+
+    users[uid].pop("difficulty", None)
+
+    save_users()
+
+    await msg.answer("Выбери уровень:", reply_markup=level_kb)
+
 # ====== ВОПРОС ======
 async def send_question(msg):
     uid = str(msg.from_user.id)
@@ -260,7 +281,12 @@ async def send_question(msg):
 @dp.message_handler(lambda msg: msg.text in ["A","B","C","D"])
 async def answer(msg: types.Message):
     uid = str(msg.from_user.id)
-    user = users[uid]
+    user = users.get(uid)
+
+    if not user or "last_question" not in user:
+        return
+    if "subject" not in user:
+        return   
 
     prompt = f"""
 Вопрос:
