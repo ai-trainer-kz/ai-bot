@@ -73,6 +73,9 @@ answers_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 answers_kb.add("A", "B", "C", "D")
 answers_kb.add("🔙 Назад", "🛑 Завершить")
 
+admin_kb = ReplyKeyboardMarkup(resize_keyboard=True)
+admin_kb.add("👥 Пользователи")
+
 pay_kb = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="✅ Я оплатил", callback_data="paid")]
 ])
@@ -96,6 +99,67 @@ async def start(msg: types.Message):
 
     await msg.answer("Выбери язык 🌍", reply_markup=lang_kb)
 
+# ====== АДМИН ПАНЕЛЬ ======
+@dp.message_handler(commands=["admin"])
+async def admin_panel(msg: types.Message):
+    if msg.from_user.id != ADMIN_ID:
+        return
+    await msg.answer("Админ панель", reply_markup=admin_kb)
+
+# ====== СПИСОК ПОЛЬЗОВАТЕЛЕЙ ======
+@dp.message_handler(lambda msg: msg.text == "👥 Пользователи")
+async def admin_users(msg: types.Message):
+    if msg.from_user.id != ADMIN_ID:
+        return
+
+    for uid, u in users.items():
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ Дать", callback_data=f"give_{uid}"),
+                InlineKeyboardButton(text="❌ Забрать", callback_data=f"remove_{uid}")
+            ]
+        ])
+
+        text = f"ID: {uid}\nPremium: {u.get('premium')}"
+        await msg.answer(text, reply_markup=kb)
+
+# ====== ВЫДАТЬ ДОСТУП ======
+@dp.callback_query_handler(lambda c: c.data.startswith("give_"))
+async def give_access(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+
+    user_id = callback.data.split("_")[1]
+
+    expires = datetime.now() + timedelta(days=30)
+
+    if user_id not in users:
+        users[user_id] = {}
+
+    users[user_id]["premium"] = True
+    users[user_id]["expires"] = expires.strftime("%Y-%m-%d")
+
+    save_users()
+
+    await callback.message.answer(f"✅ Доступ выдан {user_id}")
+    await callback.answer()
+
+# ====== ЗАБРАТЬ ДОСТУП ======
+@dp.callback_query_handler(lambda c: c.data.startswith("remove_"))
+async def remove_access(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+
+    user_id = callback.data.split("_")[1]
+
+    if user_id in users:
+        users[user_id]["premium"] = False
+        users[user_id]["expires"] = None
+        save_users()
+
+    await callback.message.answer(f"❌ Доступ убран у {user_id}")
+    await callback.answer()
+
 # ====== ЯЗЫК ======
 @dp.message_handler(lambda msg: msg.text in ["Русский 🇷🇺","Қазақ 🇰🇿","English 🇺🇸"])
 async def set_lang(msg: types.Message):
@@ -108,29 +172,26 @@ async def set_lang(msg: types.Message):
 
     await msg.answer("Привет! Я AI-тренер 💪", reply_markup=main_kb)
 
-# ====== КУПИТЬ (ИСПРАВЛЕНО) ======
+# ====== КУПИТЬ ======
 @dp.message_handler(lambda msg: msg.text == "💰 Купить")
 async def buy(msg: types.Message):
     text = """
 ПОЛНЫЙ ДОСТУП — 10 000 тг / месяц
-
-Что ты получаешь:
 
 Безлимитные задания
 Объяснения как у репетитора
 Подготовка к экзаменам
 24/7 доступ
 
-Оплата (Kaspi / перевод):
+Оплата:
 4400430352720152
 
 После оплаты отправь чек:
 @ai_teacher1_support
-
-После оплаты нажми кнопку ниже
 """
     await msg.answer(text, reply_markup=pay_kb)
-# ====== КНОПКА "Я ОПЛАТИЛ" ======
+
+# ====== ОПЛАТИЛ ======
 @dp.callback_query_handler(lambda c: c.data == "paid")
 async def paid_handler(callback: types.CallbackQuery):
     user = callback.from_user
@@ -144,8 +205,7 @@ ID: {user.id}
 """
 
     await bot.send_message(ADMIN_ID, text)
-
-    await callback.message.answer("Принял! Отправь чек в поддержку")
+    await callback.message.answer("Принял! Отправь чек")
     await callback.answer()
 
 # ====== МЕНЮ ======
@@ -175,13 +235,10 @@ async def send_question(msg):
     user = users[uid]
 
     if not is_premium(uid) and user.get("free_used", 0) >= FREE_LIMIT:
-        await msg.answer("Бесплатный лимит закончился\n\nНажми Купить")
+        await msg.answer("Лимит закончился. Купи доступ")
         return
 
-    prompt = f"""
-Задай вопрос по теме {user['subject']}.
-Формат: A B C D
-"""
+    prompt = f"Задай вопрос по теме {user['subject']} (A B C D)"
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -193,7 +250,7 @@ async def send_question(msg):
     user["last_question"] = q
 
     if not is_premium(uid):
-        user["free_used"] = user.get("free_used", 0) + 1
+        user["free_used"] += 1
 
     save_users()
 
@@ -209,10 +266,9 @@ async def answer(msg: types.Message):
 Вопрос:
 {user['last_question']}
 
-Ответ:
-{msg.text}
+Ответ: {msg.text}
 
-Скажи: правильно или нет + объяснение
+Скажи правильно или нет и объясни
 """
 
     response = client.chat.completions.create(
