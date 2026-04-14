@@ -18,7 +18,6 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 
 DATA_FILE = "users.json"
-ADMIN_ID = 8398266271
 FREE_LIMIT = 10
 
 
@@ -65,27 +64,50 @@ def is_premium(uid):
 lang_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 lang_kb.add("Русский 🇷🇺", "Қазақ 🇰🇿", "English 🇺🇸")
 
-main_kb = ReplyKeyboardMarkup(resize_keyboard=True)
-main_kb.add("🚀 Начать", "▶️ Тест")
-main_kb.add("💰 Купить")
-
-subjects_kb = ReplyKeyboardMarkup(resize_keyboard=True)
-subjects_kb.add("Математика", "История")
-subjects_kb.add("Биология", "Физика")
-subjects_kb.add("Химия")
-
-level_kb = ReplyKeyboardMarkup(resize_keyboard=True)
-level_kb.add("Лёгкий", "Средний", "Сложный")
-
 answers_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 answers_kb.add("A", "B", "C", "D")
 
 
+def main_kb(lang):
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add(
+        t(lang, "🚀 Начать", "🚀 Бастау", "🚀 Start"),
+        t(lang, "▶️ Тест", "▶️ Тест", "▶️ Test")
+    )
+    kb.add(
+        t(lang, "🌍 Язык", "🌍 Тіл", "🌍 Language")
+    )
+    return kb
+
+
+def subjects_kb(lang):
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("Математика", "История")
+    kb.add("Биология", "Физика")
+    kb.add("Химия")
+    return kb
+
+
+def level_kb(lang):
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add(
+        t(lang, "Лёгкий", "Жеңіл", "Easy"),
+        t(lang, "Средний", "Орташа", "Medium"),
+        t(lang, "Сложный", "Қиын", "Hard")
+    )
+    return kb
+
+
 def control_kb(lang):
-    return ReplyKeyboardMarkup(resize_keyboard=True).add(
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add(
         t(lang, "⬅️ Назад", "⬅️ Артқа", "⬅️ Back"),
         t(lang, "🏁 Завершить", "🏁 Аяқтау", "🏁 Finish")
     )
+    kb.add(
+        t(lang, "🏠 Меню", "🏠 Мәзір", "🏠 Menu")
+    )
+    return kb
 
 
 # ====== START ======
@@ -117,56 +139,44 @@ async def set_lang(msg: types.Message):
         users[uid]["lang"] = "en"
 
     save_users()
-    await msg.answer("Готово 👍", reply_markup=main_kb)
 
+    lang = users[uid]["lang"]
 
-# ====== КУПИТЬ ======
-@dp.message_handler(lambda msg: msg.text == "💰 Купить")
-async def buy(msg: types.Message):
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔥 7 дней — 5000", callback_data="buy_7")],
-        [InlineKeyboardButton(text="💎 30 дней — 10000", callback_data="buy_30")]
-    ])
-
-    await msg.answer("💎 Выбери тариф:", reply_markup=kb)
-
-
-@dp.callback_query_handler(lambda c: c.data == "buy_7")
-async def buy7(callback: types.CallbackQuery):
-    await callback.message.answer("💳 Kaspi: 4400430352720152\n\nНажми 'Оплатил'")
-    await callback.answer()
-
-
-@dp.callback_query_handler(lambda c: c.data == "buy_30")
-async def buy30(callback: types.CallbackQuery):
-    await callback.message.answer("💳 Kaspi: 4400430352720152\n\nНажми 'Оплатил'")
-    await callback.answer()
+    await msg.answer(
+        t(lang, "Готово 👍", "Дайын 👍", "Done 👍"),
+        reply_markup=main_kb(lang)
+    )
 
 
 # ====== МЕНЮ ======
-@dp.message_handler(lambda msg: msg.text in ["🚀 Начать", "▶️ Тест"])
+@dp.message_handler(lambda msg: msg.text in ["🚀 Начать", "▶️ Тест", "🚀 Бастау", "▶️ Test"])
 async def menu(msg: types.Message):
     uid = str(msg.from_user.id)
     lang = users[uid].get("lang", "ru")
 
     await msg.answer(
         t(lang, "Выбери предмет 👇", "Пәнді таңда 👇", "Choose subject 👇"),
-        reply_markup=subjects_kb
+        reply_markup=subjects_kb(lang)
     )
 
 
-# ====== ПРЕДМЕТ ======
+# ====== SUBJECT ======
 @dp.message_handler(lambda msg: msg.text in ["Математика", "История", "Биология", "Физика", "Химия"])
 async def subject(msg: types.Message):
     uid = str(msg.from_user.id)
+    lang = users[uid].get("lang", "ru")
+
     users[uid]["subject"] = msg.text
     save_users()
 
-    await msg.answer("Выбери уровень:", reply_markup=level_kb)
+    await msg.answer(
+        t(lang, "Выбери уровень:", "Деңгейді таңда:", "Choose level:"),
+        reply_markup=level_kb(lang)
+    )
 
 
-# ====== УРОВЕНЬ ======
-@dp.message_handler(lambda msg: msg.text in ["Лёгкий", "Средний", "Сложный"])
+# ====== LEVEL ======
+@dp.message_handler(lambda msg: msg.text in ["Лёгкий", "Средний", "Сложный", "Жеңіл", "Орташа", "Қиын", "Easy", "Medium", "Hard"])
 async def level(msg: types.Message):
     uid = str(msg.from_user.id)
     users[uid]["difficulty"] = msg.text
@@ -175,11 +185,10 @@ async def level(msg: types.Message):
     await send_question(msg)
 
 
-# ====== ВОПРОС ======
+# ====== QUESTION ======
 async def send_question(msg):
     uid = str(msg.from_user.id)
     user = users[uid]
-
     lang = user.get("lang", "ru")
 
     if not is_premium(uid) and user.get("free_used", 0) >= FREE_LIMIT:
@@ -187,11 +196,22 @@ async def send_question(msg):
         return
 
     if lang == "kz":
-        prompt = "Тек қазақ тілінде 1 тест сұрағы (A,B,C,D) және дұрыс жауап"
+        prompt = f"""
+Тек қазақ тілінде жауап бер.
+Сұрақ құрастыр (A,B,C,D).
+ДҰРЫС ЖАУАПТЫ КӨРСЕТПЕ!
+"""
     elif lang == "en":
-        prompt = "ONLY in English: create 1 test question (A,B,C,D) with correct answer"
+        prompt = f"""
+ONLY in English.
+Create 1 question (A,B,C,D).
+DO NOT show correct answer.
+"""
     else:
-        prompt = "Сделай 1 тест вопрос (A,B,C,D) и укажи правильный ответ"
+        prompt = f"""
+Сделай вопрос (A,B,C,D).
+НЕ показывай правильный ответ.
+"""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -209,20 +229,44 @@ async def send_question(msg):
     await msg.answer(q, reply_markup=answers_kb)
 
 
-# ====== ОТВЕТ ======
+# ====== ANSWER ======
 @dp.message_handler(lambda msg: msg.text in ["A", "B", "C", "D"])
 async def answer(msg: types.Message):
     uid = str(msg.from_user.id)
     user = users.get(uid)
-
     lang = user.get("lang", "ru")
 
     if lang == "kz":
-        prompt = f"Сен тек қазақ тілінде жауап бер!\n{user['last_question']}\nЖауап: {msg.text}"
+        prompt = f"""
+Тек қазақ тілінде жауап бер!
+
+Сұрақ:
+{user['last_question']}
+
+Жауап: {msg.text}
+
+Дұрыс па, түсіндір.
+"""
     elif lang == "en":
-        prompt = f"You MUST answer ONLY in English!\n{user['last_question']}\nAnswer: {msg.text}"
+        prompt = f"""
+Answer ONLY in English!
+
+Question:
+{user['last_question']}
+
+Answer: {msg.text}
+
+Explain if correct or not.
+"""
     else:
-        prompt = f"{user['last_question']}\nОтвет: {msg.text}"
+        prompt = f"""
+Вопрос:
+{user['last_question']}
+
+Ответ: {msg.text}
+
+Правильно или нет и объясни.
+"""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -232,10 +276,9 @@ async def answer(msg: types.Message):
     res = response.choices[0].message.content
 
     await msg.answer(res, reply_markup=control_kb(lang))
-    await send_question(msg)
 
 
-# ====== КНОПКИ ======
+# ====== NAVIGATION ======
 @dp.message_handler(lambda msg: msg.text in ["⬅️ Назад", "⬅️ Артқа", "⬅️ Back"])
 async def back(msg: types.Message):
     await menu(msg)
@@ -247,7 +290,23 @@ async def finish(msg: types.Message):
     users[uid]["last_question"] = None
     save_users()
 
-    await msg.answer("✅ Тест завершён", reply_markup=main_kb)
+    lang = users[uid].get("lang", "ru")
+
+    await msg.answer(
+        t(lang, "✅ Тест завершён", "✅ Тест аяқталды", "✅ Test finished"),
+        reply_markup=main_kb(lang)
+    )
+
+
+@dp.message_handler(lambda msg: msg.text in ["🏠 Меню", "🏠 Мәзір", "🏠 Menu"])
+async def to_menu(msg: types.Message):
+    uid = str(msg.from_user.id)
+    lang = users[uid].get("lang", "ru")
+
+    await msg.answer(
+        t(lang, "Главное меню", "Басты мәзір", "Main menu"),
+        reply_markup=main_kb(lang)
+    )
 
 
 # ====== RUN ======
