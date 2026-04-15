@@ -178,8 +178,16 @@ async def start(message: types.Message):
 @dp.message_handler(lambda m: "Назад" in (m.text or ""))
 async def back(message: types.Message):
     ensure_user(message.from_user.id)
-    users[message.from_user.id]["step"] = "idle"
-    await message.answer("Главное меню", reply_markup=main_kb(message.from_user.id))
+
+    u = users[message.from_user.id]
+
+    # 🔥 СБРОС ТЕСТА
+    u["step"] = "idle"
+    u["history"] = []
+    u["correct"] = 0
+    u["wrong"] = 0
+
+    await message.answer("Главное меню", reply_markup=main_kb())
 
 # ===== ЯЗЫК =====
 @dp.message_handler(lambda m: m.text == "🌐 Язык")
