@@ -279,19 +279,20 @@ async def start_ai(message: types.Message):
     if not can_use(u):
         await message.answer(f"❌ Лимит\nKaspi: {KASPI}", reply_markup=pay_kb())
         return
-
     text = ask_gpt(u)
-
     import re
-    match = re.search(r"Правильный ответ[:\s]*([ABCD])", text, re.IGNORECASE)
+    match = re.search(r"Правильный ответ[:\s]*([ABCD])", text)
     if match:
         u["correct"] = match.group(1)
 
     text = re.sub(r"Правильный ответ[:\s]*[ABCD]", "", text)
 
-    await message.answer(text, reply_markup=answer_kb())
+    await message.answer(text, reply_markup=answer_kb()) 
+    
     if u["step"] != "ai":
         return
+
+# потом уже ask_gpt и всё остальное
 
     if not has_access(u):
         u["messages_used"] += 1
