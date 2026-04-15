@@ -242,6 +242,15 @@ async def start_ai(message: types.Message):
 
     await message.answer(text, reply_markup=answer_kb())
 
+# ===== НАЗАД =====
+@dp.message_handler(lambda m: "Назад" in m.text)
+async def go_back(message: types.Message):
+    u = users[message.from_user.id]
+
+    u["step"] = "subject"
+    save_users()
+
+    await message.answer("⬅️ Назад\n\nВыбери предмет:", reply_markup=subject_kb())
 # ===== ОТВЕТЫ =====
 @dp.message_handler(lambda m: m.text in ["A", "B", "C", "D"])
 async def answer_buttons(message: types.Message):
