@@ -15,13 +15,12 @@ from aiogram.utils import executor
 
 API_TOKEN = "TOKEN"
 ADMIN_ID = 8398266271
-OPENAI_API_KEY = "OPENAI_KEY"
-
-openai.api_key = OPENAI_API_KEY
 
 logging.basicConfig(level=logging.INFO)
 
-bot = Bot(token=API_TOKEN)
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 dp = Dispatcher(bot)
 
 # ======================
