@@ -240,12 +240,12 @@ async def start_ai(message: types.Message):
 
 @dp.message_handler(lambda m: True)
 async def ai_chat(message: types.Message):
-   print("AI CHAT WORKS") 
+    print("AI CHAT WORKS")
+
     ensure_user(message.from_user.id)
     u = users[message.from_user.id]
 
     print("TEXT:", message.text)
-
     # выбор уровня
     if message.text in ["🟢 База", "🟡 Средний", "🔴 Сложный", "База", "Средний", "Сложный"]:
         text = message.text.replace("🟢", "").replace("🟡", "").replace("🔴", "").strip()
