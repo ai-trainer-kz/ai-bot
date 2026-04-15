@@ -154,17 +154,19 @@ def ask_gpt(u, user_text=None):
 
     if user_text is None:
     stop_words = [
-    "Правильный ответ",
-    "Ответ:",
-    "Ответ -",
-    "Дұрыс жауап",
-    "Дұрыс жауап:",
-    "Объяснение",
-    "Түсіндірме"
-]
+        "Правильный ответ",
+        "Ответ:",
+        "Ответ -",
+        "Дұрыс жауап",
+        "Дұрыс жауап:",
+        "Объяснение",
+        "Түсіндірме"
+    ]
+
     for word in stop_words:
         if word in answer:
             answer = answer.split(word)[0]
+            
     if user_text:
         u["history"].append({"role": "user", "content": user_text})
     u["history"].append({"role": "assistant", "content": answer})
