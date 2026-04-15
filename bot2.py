@@ -281,6 +281,15 @@ async def start_ai(message: types.Message):
         return
 
     text = ask_gpt(u)
+
+    import re
+    match = re.search(r"Правильный ответ[:\s]*([ABCD])", text)
+    if match:
+    u["correct"] = match.group(1)
+
+    # убираем строку с ответом
+    text = re.sub(r"Правильный ответ.*", "", text)
+
     await message.answer(text, reply_markup=answer_kb())
 
 @dp.message_handler(lambda m: m.text in ["A","B","C","D"])
@@ -295,6 +304,14 @@ async def answer_buttons(message: types.Message):
 
     save_users()
     text = ask_gpt(u, message.text)
+
+    import re
+    match = re.search(r"Правильный ответ[:\s]*([ABCD])", text)
+    if match:
+    u["correct"] = match.group(1)
+
+    text = re.sub(r"Правильный ответ.*", "", text)
+
     await message.answer(text, reply_markup=answer_kb())
 
 # ===== ОПЛАТА =====
