@@ -243,27 +243,52 @@ async def ai_chat(message: types.Message):
     ensure_user(message.from_user.id)
     u = users[message.from_user.id]
 
-    print("TEXT:", message.text)  # 👈 увидишь ВСЁ что нажимается
+    print("TEXT:", message.text)
 
-     # ЛОВИМ уровень ПРЯМО ЗДЕСЬ
- if message.text in ["🟢 База", "🟡 Средний", "🔴 Сложный", "База", "Средний", "Сложный"]:
-     text = message.text.replace("🟢", "").replace("🟡", "").replace("🔴", "").strip()
+    # выбор уровня
+    if message.text in ["🟢 База", "🟡 Средний", "🔴 Сложный", "База", "Средний", "Сложный"]:
+        text = message.text.replace("🟢", "").replace("🟡", "").replace("🔴", "").strip()
 
-     u["level"] = text
-     u["step"] = "ai"
-     u["history"] = []
+        u["level"] = text
+        u["step"] = "ai"
+        u["history"] = []
 
-     print("LEVEL:", text)
+        print("LEVEL:", text)
 
-     answer = ask_gpt(u)
+        answer = ask_gpt(u)
 
-     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-     kb.add("A", "B", "C", "D")
-     kb.add("⬅️ Назад")
+        kb = ReplyKeyboardMarkup(resize_keyboard=True)
+        kb.add("A", "B", "C", "D")
+        kb.add("⬅️ Назад")
 
-     await message.answer(answer, reply_markup=kb)
-     return
+        await message.answer(answer, reply_markup=kb)
+        return
 
+    # если не в режиме AI — игнор
+    if u["step"] != "ai":
+        return
+
+    if not can_use(u):
+        await message.answer(
+            f"❌ Лимит закончился\n\nKaspi: {KASPI}\n7 дней — {PRICE_7}\n30 дней — {PRICE_30}",
+            reply_markup=pay_kb()
+        )
+        return
+
+    if not has_access(u):
+        u["messages_used"] += 1
+
+    answer = ask_gpt(u, message.text)
+
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("A", "B", "C", "D")
+    kb.add("⬅️ Назад")
+
+    await message.answer(answer, reply_markup=kb)
+
+    # дальше обычная логика
+    if u["step"] != "ai":
+        return
     # если не в режиме AI — игнор
     if u["step"] != "ai":
         return
