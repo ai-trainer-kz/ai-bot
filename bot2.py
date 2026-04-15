@@ -194,20 +194,30 @@ async def choose_level(message: types.Message):
     u["step"] = "level"
     await message.answer("Выбери уровень", reply_markup=level_kb())
 
-@dp.message_handler(lambda m: any(x in m.text for x in ["База","Средний","Сложный"]))
+@dp.message_handler(lambda m: any(x in m.text for x in ["База", "Средний", "Сложный"]))
 async def start_ai(message: types.Message):
+    ensure_user(message.from_user.id)
     u = users[message.from_user.id]
-    u["level"] = message.text
+
+    # убираем эмодзи
+    text = message.text.replace("🟢", "").replace("🟡", "").replace("🔴", "").strip()
+
+    u["level"] = text
     u["step"] = "ai"
     u["history"] = []
 
     if not can_use(u):
-        await message.answer(f"❌ Лимит\nKaspi: {KASPI}", reply_markup=pay_kb())
+        await message.answer(
+            f"❌ Лимит закончился\n\nKaspi: {KASPI}\n7 дней — {PRICE_7}\n30 дней — {PRICE_30}",
+            reply_markup=pay_kb()
+        )
         return
 
-    text = ask_gpt(u)
-    await message.answer(text, reply_markup=answer_kb())
-
+    answer = ask_gpt(u)
+    await message.answer(answer, reply_markup=ReplyKeyboardMarkup(
+        resize_keyboard=True
+    ).add("A", "B", "C", "D").add("⬅️ Назад"))
+    
 # ===== ЯЗЫК =====
 @dp.message_handler(lambda m: m.text == "🌐 Язык")
 async def choose_lang(message: types.Message):
