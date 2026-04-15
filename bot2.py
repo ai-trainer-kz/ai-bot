@@ -143,14 +143,26 @@ def ask_gpt(u, user_text=None):
     else:
         messages.append({"role": "user", "content": user_text})
 
-    resp = client.chat.completions.create(
-        model=MODEL,
-        messages=messages,
-        temperature=0.6,
-    )
+    try:
+        resp = client.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            temperature=0.6,
+        )
 
-    answer = resp.choices[0].message.content
+        answer = resp.choices[0].message.content
 
+    except Exception as e:
+        print("GPT ERROR:", e)
+        return "❌ Ошибка GPT, смотри логи"
+
+    # сохраняем историю
+    if user_text:
+        u["history"].append({"role": "user", "content": user_text})
+    u["history"].append({"role": "assistant", "content": answer})
+
+    return answer
+    
     # --- убираем спойлеры ---
     if user_text is None:
         stop_words = [
