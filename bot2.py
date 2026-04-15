@@ -176,20 +176,6 @@ async def back(message: types.Message):
     await message.answer("Главное меню", reply_markup=main_kb(message.from_user.id))
 
 # ===== АДМИН =====
-@dp.message_handler(lambda m: m.text == "👑 Админ")
-async def admin_panel(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-    await message.answer("Админ панель", reply_markup=admin_kb())
-
-@dp.message_handler(lambda m: m.text in ["➕ Дать 7 дней", "➕ Дать 30 дней"])
-async def admin_choose(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-
-    users[message.from_user.id]["step"] = message.text
-    await message.answer("Отправь ID пользователя")
-
 @dp.message_handler(lambda m: users.get(m.from_user.id, {}).get("step") in ["➕ Дать 7 дней", "➕ Дать 30 дней"])
 async def admin_give(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -205,11 +191,17 @@ async def admin_give(message: types.Message):
 
     if users[message.from_user.id]["step"] == "➕ Дать 7 дней":
         users[uid]["premium_until"] = datetime.now() + timedelta(days=7)
+
+        await bot.send_message(uid, "🎉 Вам выдан доступ на 7 дней!")
+
         await message.answer("✅ Выдано 7 дней")
+
     else:
         users[uid]["premium_until"] = datetime.now() + timedelta(days=30)
-        await message.answer("✅ Выдано 30 дней")
 
+        await bot.send_message(uid, "🎉 Вам выдан доступ на 30 дней!")
+
+        await message.answer("✅ Выдано 30 дней")
 # ===== ОПЛАТА =====
 @dp.message_handler(lambda m: m.text == "💰 Купить доступ")
 async def pay(message: types.Message):
