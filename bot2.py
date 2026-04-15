@@ -127,8 +127,50 @@ def can_use(u):
 # ===== GPT =====
 def system_prompt(subject, level, lang):
     if lang == "kz":
-        return f"Сен ҰБТ мұғалімі ({subject}). Деңгей: {level}"
-    return f"Ты преподаватель ЕНТ ({subject}). Уровень: {level}"
+        return f"""
+Сен ҰБТ мұғалімі ({subject}). Деңгей: {level}.
+
+ТЕК тест жаса.
+
+МАЖМҰН:
+- ТЕК 1 сұрақ
+- 4 жауап нұсқасы
+
+ТЫЙЫМ:
+- ШЕШІМ жазба
+- ТҮСІНДІРМЕ жазба
+- LaTeX қолданба
+
+ФОРМАТ:
+Сұрақ:
+...
+A) ...
+B) ...
+C) ...
+D) ...
+"""
+    return f"""
+Ты преподаватель ЕНТ ({subject}). Уровень: {level}.
+
+СОЗДАЙ ТОЛЬКО ТЕСТ.
+
+ТРЕБОВАНИЯ:
+- Только 1 вопрос
+- 4 варианта ответа
+
+ЗАПРЕЩЕНО:
+- НЕ пиши решение
+- НЕ объясняй
+- НЕ используй LaTeX (\( \), \[ \])
+
+ФОРМАТ СТРОГО:
+Вопрос:
+...
+A) ...
+B) ...
+C) ...
+D) ...
+"""
 
 def ask_gpt(u, user_text=None):
     messages = [{"role": "system", "content": system_prompt(u["subject"], u["level"], u["lang"])}]
@@ -146,8 +188,12 @@ def ask_gpt(u, user_text=None):
 
     answer = resp.choices[0].message.content
 
-    answer = answer.replace("\\(", "").replace("\\)", "")
-    answer = answer.replace("**", "")
+    # чистка текста
+    for s in ["\\(", "\\)", "\\[", "\\]", "**"]:
+        answer = answer.replace(s, "")
+
+    # замена мат. символов
+    answer = answer.replace("\\times", "×")
 
     if user_text:
         u["history"].append({"role": "user", "content": user_text})
