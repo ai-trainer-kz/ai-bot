@@ -13,9 +13,10 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ADMIN_ID = 8398266271
 
 FREE_MESSAGES = 10
-PRICE_7 = "1000 тг"
-PRICE_30 = "3000 тг"
-KASPI = "87001234567"
+
+PRICE_7 = "5000 тг"
+PRICE_30 = "10000 тг"
+KASPI = "4400430352720152"
 
 MODEL = "gpt-4o-mini"
 
@@ -28,11 +29,22 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 users = {}
 
 # ===== КНОПКИ =====
-def main_kb():
+def main_kb(user_id=None):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("📚 Начать обучение")
     kb.add("💰 Купить доступ", "📊 Статус")
     kb.add("🌐 Язык")
+
+    if user_id == ADMIN_ID:
+        kb.add("👑 Админ")
+
+    return kb
+
+def admin_kb():
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("➕ Дать 7 дней", "➕ Дать 30 дней")
+    kb.add("📋 Пользователи")
+    kb.add("⬅️ Назад")
     return kb
 
 def subject_kb():
@@ -94,62 +106,52 @@ def adapt_level(u):
         return "База"
     return "Средний"
 
-# ===== PRO GPT PROMPT =====
+# ===== GPT =====
 def system_prompt(subject, level, lang):
     if lang == "kz":
         return f"""
-Сен — ҰБТ пәні бойынша мұғалімсің: {subject}.
+Сен — ҰБТ мұғалімісің: {subject}
 
-Сұрақ бер.
-Оқушы жауап берген соң:
+Жауаптан кейін:
+- дұрыс/бұрыс айт
+- дұрыс жауап
+- түсіндіру
+- келесі сұрақ
 
-1. Дұрыс/бұрыс айт
-2. Дұрыс жауапты көрсет
-3. ҚАТЕНІ ТҮСІНДІР
-4. Қысқа түсініктеме бер
-5. Келесі сұрақ бер
-
-Формат:
 A) B) C) D)
 
 Деңгей: {level}
 """
     else:
         return f"""
-Ты — преподаватель ЕНТ по предмету: {subject}.
+Ты — преподаватель ЕНТ: {subject}
 
-После ответа ученика:
+После ответа:
+- правильно/неправильно
+- правильный ответ
+- объяснение
+- следующий вопрос
 
-1. Правильно/неправильно
-2. Правильный ответ
-3. Объясни ошибку
-4. Короткое объяснение
-5. Следующий вопрос
-
-Формат:
 A) B) C) D)
 
 Уровень: {level}
 """
 
 def ask_gpt(u, user_text=None):
-    level = adapt_level(u)
-
     messages = [
-        {"role": "system", "content": system_prompt(u["subject"], level, u["lang"])}
+        {"role": "system", "content": system_prompt(u["subject"], adapt_level(u), u["lang"])}
     ]
 
     messages += u["history"][-10:]
 
     if not user_text:
-        messages.append({"role": "user", "content": "Начни тест"})
+        messages.append({"role": "user", "content": "Начни"})
     else:
         messages.append({"role": "user", "content": user_text})
 
     resp = client.chat.completions.create(
         model=MODEL,
-        messages=messages,
-        temperature=0.6,
+        messages=messages
     )
 
     answer = resp.choices[0].message.content
@@ -164,84 +166,99 @@ def ask_gpt(u, user_text=None):
 @dp.message_handler(commands=['start'])
 async def start(message: types.Message):
     ensure_user(message.from_user.id)
-    await message.answer("🤖 AI ЕНТ Тренер", reply_markup=main_kb())
+    await message.answer("🤖 AI ЕНТ Тренер", reply_markup=main_kb(message.from_user.id))
 
 # ===== НАЗАД =====
 @dp.message_handler(lambda m: "Назад" in (m.text or ""))
 async def back(message: types.Message):
     ensure_user(message.from_user.id)
     users[message.from_user.id]["step"] = "idle"
-    await message.answer("Главное меню", reply_markup=main_kb())
+    await message.answer("Главное меню", reply_markup=main_kb(message.from_user.id))
 
-# ===== ЯЗЫК =====
-@dp.message_handler(lambda m: m.text == "🌐 Язык")
-async def choose_lang(message: types.Message):
-    ensure_user(message.from_user.id)
-    await message.answer("Выбери язык", reply_markup=lang_kb())
+# ===== АДМИН =====
+@dp.message_handler(lambda m: m.text == "👑 Админ")
+async def admin_panel(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    await message.answer("Админ панель", reply_markup=admin_kb())
 
-@dp.message_handler(lambda m: m.text in ["🇷🇺 Русский", "🇰🇿 Қазақша"])
-async def set_lang(message: types.Message):
-    ensure_user(message.from_user.id)
-    u = users[message.from_user.id]
+@dp.message_handler(lambda m: m.text in ["➕ Дать 7 дней", "➕ Дать 30 дней"])
+async def admin_choose(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
 
-    u["lang"] = "kz" if "Қазақша" in message.text else "ru"
+    users[message.from_user.id]["step"] = message.text
+    await message.answer("Отправь ID пользователя")
 
-    text = "Тіл өзгертілді 🇰🇿" if u["lang"] == "kz" else "Язык изменён 🇷🇺"
-    await message.answer(text, reply_markup=main_kb())
+@dp.message_handler(lambda m: users.get(m.from_user.id, {}).get("step") in ["➕ Дать 7 дней", "➕ Дать 30 дней"])
+async def admin_give(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
 
-# ===== НАЧАТЬ =====
+    try:
+        uid = int(message.text)
+    except:
+        await message.answer("Нужен ID")
+        return
+
+    ensure_user(uid)
+
+    if users[message.from_user.id]["step"] == "➕ Дать 7 дней":
+        users[uid]["premium_until"] = datetime.now() + timedelta(days=7)
+        await message.answer("✅ Выдано 7 дней")
+    else:
+        users[uid]["premium_until"] = datetime.now() + timedelta(days=30)
+        await message.answer("✅ Выдано 30 дней")
+
+# ===== ОПЛАТА =====
+@dp.message_handler(lambda m: m.text == "💰 Купить доступ")
+async def pay(message: types.Message):
+    await message.answer(
+        f"💳 Kaspi: {KASPI}\n\n7 дней — {PRICE_7}\n30 дней — {PRICE_30}\n\nПосле оплаты нажми 'Оплатил'",
+        reply_markup=pay_kb()
+    )
+
+@dp.message_handler(lambda m: m.text == "💰 Оплатил")
+async def paid(message: types.Message):
+    username = message.from_user.username
+    uid = message.from_user.id
+
+    await bot.send_message(
+        ADMIN_ID,
+        f"💰 Оплата!\nID: {uid}\nUsername: @{username}"
+    )
+
+    await message.answer("⏳ Ждите подтверждения")
+
+# ===== ОБУЧЕНИЕ =====
 @dp.message_handler(lambda m: m.text == "📚 Начать обучение")
-async def choose_subject(message: types.Message):
+async def subject(message: types.Message):
     ensure_user(message.from_user.id)
     users[message.from_user.id]["step"] = "subject"
     await message.answer("Выбери предмет", reply_markup=subject_kb())
 
 @dp.message_handler(lambda m: any(x in (m.text or "") for x in ["Математика","История","Биология","Химия"]))
-async def choose_level(message: types.Message):
-    ensure_user(message.from_user.id)
+async def level(message: types.Message):
     u = users[message.from_user.id]
-
     u["subject"] = message.text.split(" ",1)[-1]
     u["step"] = "level"
-
     await message.answer("Выбери уровень", reply_markup=level_kb())
 
 @dp.message_handler(lambda m: any(x in (m.text or "") for x in ["База","Средний","Сложный"]))
 async def start_ai(message: types.Message):
-    ensure_user(message.from_user.id)
     u = users[message.from_user.id]
-
-    u["level"] = message.text
     u["step"] = "ai"
     u["history"] = []
-
-    if not can_use(u):
-        await message.answer(f"❌ Лимит\nKaspi: {KASPI}", reply_markup=pay_kb())
-        return
 
     text = ask_gpt(u)
     await message.answer(text, reply_markup=answer_kb())
 
-# ===== ОТВЕТЫ =====
 @dp.message_handler(lambda m: m.text in ["A","B","C","D"])
-async def answer_buttons(message: types.Message):
-    ensure_user(message.from_user.id)
+async def answer(message: types.Message):
     u = users[message.from_user.id]
 
     if u["step"] != "ai":
         return
-
-    last = u["history"][-1]["content"] if u["history"] else ""
-
-    if "Правильный ответ" in last:
-        correct = last.split("Правильный ответ:")[-1].strip()[0]
-        if message.text == correct:
-            u["correct"] += 1
-        else:
-            u["wrong"] += 1
-
-    if not has_access(u):
-        u["messages_used"] += 1
 
     text = ask_gpt(u, message.text)
     await message.answer(text, reply_markup=answer_kb())
@@ -249,47 +266,19 @@ async def answer_buttons(message: types.Message):
 # ===== СТАТУС =====
 @dp.message_handler(lambda m: m.text == "📊 Статус")
 async def status(message: types.Message):
-    ensure_user(message.from_user.id)
     u = users[message.from_user.id]
+    await message.answer(f"✅ {u['correct']} ❌ {u['wrong']}")
 
-    total = u["correct"] + u["wrong"]
-    percent = int((u["correct"] / total) * 100) if total else 0
+# ===== ЯЗЫК =====
+@dp.message_handler(lambda m: m.text == "🌐 Язык")
+async def lang(message: types.Message):
+    await message.answer("Выбери язык", reply_markup=lang_kb())
 
-    await message.answer(
-        f"📊 Статистика:\n\n✅ {u['correct']}\n❌ {u['wrong']}\n📈 {percent}%"
-    )
-
-# ===== ОПЛАТА =====
-@dp.message_handler(lambda m: m.text == "💰 Купить доступ")
-async def pay(message: types.Message):
-    await message.answer(
-        f"Kaspi: {KASPI}\n7 дней — {PRICE_7}\n30 дней — {PRICE_30}",
-        reply_markup=pay_kb()
-    )
-
-@dp.message_handler(lambda m: m.text == "💰 Оплатил")
-async def paid(message: types.Message):
-    await bot.send_message(ADMIN_ID, f"Оплата от {message.from_user.id}")
-    await message.answer("⏳ Проверка")
-
-# ===== АДМИН =====
-@dp.message_handler(commands=['give7'])
-async def give7(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-    uid = int(message.get_args())
-    ensure_user(uid)
-    users[uid]["premium_until"] = datetime.now() + timedelta(days=7)
-    await message.answer("OK 7")
-
-@dp.message_handler(commands=['give30'])
-async def give30(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-    uid = int(message.get_args())
-    ensure_user(uid)
-    users[uid]["premium_until"] = datetime.now() + timedelta(days=30)
-    await message.answer("OK 30")
+@dp.message_handler(lambda m: m.text in ["🇷🇺 Русский", "🇰🇿 Қазақша"])
+async def set_lang(message: types.Message):
+    u = users[message.from_user.id]
+    u["lang"] = "kz" if "Қазақша" in message.text else "ru"
+    await message.answer("OK", reply_markup=main_kb(message.from_user.id))
 
 # ===== ЗАПУСК =====
 if __name__ == "__main__":
