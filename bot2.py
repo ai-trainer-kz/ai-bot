@@ -153,14 +153,14 @@ def ask_gpt(u, user_text=None):
     answer = resp.choices[0].message.content
 
     if user_text is None:
-    stop_words = [
-        "Правильный ответ",
-        "Ответ:",
-        "Ответ -",
-        "Дұрыс жауап",
-        "Дұрыс жауап:",
-        "Объяснение",
-        "Түсіндірме"
+        stop_words = [
+            "Правильный ответ",
+            "Ответ:",
+            "Ответ -",
+            "Дұрыс жауап",
+            "Дұрыс жауап:",
+           "Объяснение",
+           "Түсіндірме"
     ]
 
     for word in stop_words:
