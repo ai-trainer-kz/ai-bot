@@ -184,9 +184,17 @@ async def start_ai(message: types.Message):
 async def ai_chat(message: types.Message):
     ensure_user(message.from_user.id)
     u = users[message.from_user.id]
+    # кнопка назад
+if message.text == "⬅️ Назад" or message.text == "Назад":
+    u["step"] = "idle"
+    
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("📚 Начать обучение")
+    kb.add("💰 Купить доступ", "📊 Статус")
+    kb.add("🌐 Язык")
 
-    if u["step"] != "ai":
-        return
+    await message.answer("Главное меню", reply_markup=kb)
+    return
 
     if not can_use(u):
         await message.answer(
