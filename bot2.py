@@ -1,5 +1,3 @@
-import os
-import json
 import logging
 import sqlite3
 import os
@@ -10,7 +8,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils import executor
 
-API_TOKEN = os.getenv("8315601912:AAHoo0mcZHJV8qtlDdjze7HQvM6tXgM9U88")  
+API_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 8398266271
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
