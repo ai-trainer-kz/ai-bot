@@ -283,19 +283,13 @@ async def start_ai(message: types.Message):
     text = ask_gpt(u)
 
     import re
-    match = re.search(r"Правильный ответ[:\s]*([ABCD])", text)
+    match = re.search(r"Правильный ответ[:\s]*([ABCD])", text, re.IGNORECASE)
     if match:
     u["correct"] = match.group(1)
 
-    # убираем строку с ответом
-    text = re.sub(r"Правильный ответ.*", "", text)
+    text = re.sub(r"Правильный ответ[:\s]*[ABCD]", "", text)
 
     await message.answer(text, reply_markup=answer_kb())
-
-@dp.message_handler(lambda m: m.text in ["A","B","C","D"])
-async def answer_buttons(message: types.Message):
-    u = users[message.from_user.id]
-
     if u["step"] != "ai":
         return
 
