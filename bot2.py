@@ -180,12 +180,15 @@ async def start_ai(message: types.Message):
     await message.answer(ask_gpt(u), reply_markup=answer_kb())
 
 # ===== ЧАТ =====
-@dp.message_handler(lambda m: True)
+
+@dp.message_handler(lambda m: users.get(m.from_user.id, {}).get("step") == "ai" or "Назад" in (m.text or ""))
 async def ai_chat(message: types.Message):
+
     ensure_user(message.from_user.id)
     u = users[message.from_user.id]
 
-    if "Назад" in message.text:
+    # ⬅️ Назад — всегда работает
+    if "Назад" in (message.text or ""):
         u["step"] = "idle"
 
         kb = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -194,6 +197,29 @@ async def ai_chat(message: types.Message):
         kb.add("🌐 Язык")
 
         await message.answer("Главное меню", reply_markup=kb)
+        return
+
+    # дальше GPT
+    if not can_use(u):
+        await message.answer(
+            f"❌ Лимит закончился\n\nKaspi: {KASPI}\n7 дней — {PRICE_7}\n30 дней — {PRICE_30}",
+            reply_markup=pay_kb()
+        )
+        return
+
+    if not has_access(u):
+        u["messages_used"] += 1
+
+    answer = ask_gpt(u, message.text)
+
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("A", "B", "C", "D")
+    kb.add("⬅️ Назад")
+
+    await message.answer(answer, reply_markup=kb)
+
+    # ❗ GPT только в режиме AI
+    if u["step"] != "ai":
         return
 
     if not can_use(u):
