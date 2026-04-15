@@ -240,6 +240,7 @@ async def start_ai(message: types.Message):
 
 @dp.message_handler(lambda m: True)
 async def ai_chat(message: types.Message):
+   print("AI CHAT WORKS") 
     ensure_user(message.from_user.id)
     u = users[message.from_user.id]
 
