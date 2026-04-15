@@ -130,11 +130,10 @@ D)
 """
 
 def ask_gpt(u, user_text=None):
-    answer = resp.choices[0].message.content
     level = adapt_level(u)
 
     messages = [
-        {"role": "system", "content": system_prompt(u["subject"], level, u["lang"])}
+        {"role": "system", "content": system_prompt(u["subject"], level)}
     ]
 
     messages += u["history"][-10:]
@@ -152,6 +151,7 @@ def ask_gpt(u, user_text=None):
 
     answer = resp.choices[0].message.content
 
+    # --- убираем спойлеры ---
     if user_text is None:
         stop_words = [
             "Правильный ответ",
@@ -159,16 +159,18 @@ def ask_gpt(u, user_text=None):
             "Ответ -",
             "Дұрыс жауап",
             "Дұрыс жауап:",
-           "Объяснение",
-           "Түсіндірме"
-    ]
+            "Объяснение",
+            "Түсіндірме"
+        ]
 
-    for word in stop_words:
-        if word in answer:
-            answer = answer.split(word)[0]
-            
+        for word in stop_words:
+            if word in answer:
+                answer = answer.split(word)[0]
+
+    # сохраняем историю
     if user_text:
         u["history"].append({"role": "user", "content": user_text})
+
     u["history"].append({"role": "assistant", "content": answer})
 
     return answer
