@@ -28,12 +28,16 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 users = {}
 
 # ===== КНОПКИ =====
-def main_kb():
+def main_kb(user_id=None):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("📚 Начать обучение")
     kb.add("💰 Купить доступ", "📊 Статус")
     kb.add("🌐 Язык")
-    kb.add("👑 Админ")
+
+    # 🔥 только админу
+    if user_id == ADMIN_ID:
+        kb.add("👑 Админ")
+
     return kb
 
 def subject_kb():
@@ -168,14 +172,14 @@ def ask_gpt(u, user_text=None):
 @dp.message_handler(commands=['start'])
 async def start(message: types.Message):
     ensure_user(message.from_user.id)
-    await message.answer("🤖 AI ЕНТ Тренер", reply_markup=main_kb())
+    await message.answer("🤖 AI ЕНТ Тренер", reply_markup=main_kb(message.from_user.id))
 
 # ===== НАЗАД =====
 @dp.message_handler(lambda m: "Назад" in (m.text or ""))
 async def back(message: types.Message):
     ensure_user(message.from_user.id)
     users[message.from_user.id]["step"] = "idle"
-    await message.answer("Главное меню", reply_markup=main_kb())
+    await message.answer("Главное меню", reply_markup=main_kb(message.from_user.id))
 
 # ===== ЯЗЫК =====
 @dp.message_handler(lambda m: m.text == "🌐 Язык")
@@ -190,7 +194,7 @@ async def set_lang(message: types.Message):
     u["lang"] = "kz" if "Қазақша" in message.text else "ru"
 
     text = "Тіл өзгертілді 🇰🇿" if u["lang"] == "kz" else "Язык изменён 🇷🇺"
-    await message.answer(text, reply_markup=main_kb())
+    await message.answer(text, reply_markup=main_kb(message.from_user.id))
 
 # ===== ОБУЧЕНИЕ =====
 @dp.message_handler(lambda m: m.text == "📚 Начать обучение")
