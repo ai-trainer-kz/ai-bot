@@ -95,12 +95,15 @@ def adapt_level(u):
     return "Средний"
 
 def system_prompt(subject, level, lang):
-    language = "русском" if lang == "ru" else "казахском"
+    language = "русском языке" if lang == "ru" else "казахском языке (только казахский, без русского)"
+
     return f"""
 Ты — преподаватель ЕНТ по предмету: {subject}.
-Отвечай на {language} языке.
+Говори только на {language} языке.
 
-ФОРМАТ ОБЯЗАТЕЛЕН:
+СТРОГОЕ ПРАВИЛО:
+
+1) СНАЧАЛА ты задаёшь ТОЛЬКО вопрос:
 
 Вопрос:
 ...
@@ -109,17 +112,25 @@ B)
 C)
 D)
 
-После ответа:
-Правильно/Неправильно
-Правильный ответ: X
-Короткое объяснение
+❌ НЕ пиши:
+- правильный ответ
+- объяснение
+- ничего лишнего
 
-Затем новый вопрос.
+2) ЖДЁШЬ ответ ученика
+
+3) ТОЛЬКО ПОСЛЕ ответа:
+- Правильно / Неправильно
+- Правильный ответ: X
+- Короткое объяснение
+
+4) Потом новый вопрос (снова без ответа)
 
 Уровень: {level}
 """
 
 def ask_gpt(u, user_text=None):
+    answer = resp.choices[0].message.content
     level = adapt_level(u)
 
     messages = [
@@ -141,6 +152,19 @@ def ask_gpt(u, user_text=None):
 
     answer = resp.choices[0].message.content
 
+    if user_text is None:
+    stop_words = [
+    "Правильный ответ",
+    "Ответ:",
+    "Ответ -",
+    "Дұрыс жауап",
+    "Дұрыс жауап:",
+    "Объяснение",
+    "Түсіндірме"
+]
+    for word in stop_words:
+        if word in answer:
+            answer = answer.split(word)[0]
     if user_text:
         u["history"].append({"role": "user", "content": user_text})
     u["history"].append({"role": "assistant", "content": answer})
@@ -195,7 +219,7 @@ async def set_lang(message: types.Message):
 # ===== ОТВЕТЫ =====
 @dp.message_handler(lambda m: m.text in ["A","B","C","D"])
 async def answer_buttons(message: types.Message):
-    u = users[message.from_user.id]
+    u = users[message.from_user.id]    
 
     if not has_access(u):
         u["messages_used"] += 1
