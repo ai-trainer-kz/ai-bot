@@ -167,14 +167,24 @@ async def start(message: types.Message):
 # ===== НАЗАД =====
 @dp.message_handler(lambda m: "Назад" in (m.text or ""))
 async def back(message: types.Message):
-    u = users[message.from_user.id]
-    u["step"] = "idle"
-    u["history"] = []
-    u["correct"] = 0
-    u["wrong"] = 0
-    save_users()
-    await message.answer("Главное меню", reply_markup=main_kb(message.from_user.id))
+    ensure_user(message.from_user.id)
 
+    # 🔥 ПОЛНЫЙ СБРОС
+    users[message.from_user.id] = {
+        "step": "idle",
+        "subject": None,
+        "level": "Средний",
+        "lang": users[message.from_user.id].get("lang", "ru"),
+        "messages_used": users[message.from_user.id].get("messages_used", 0),
+        "premium_until": users[message.from_user.id].get("premium_until"),
+        "history": [],
+        "correct": 0,
+        "wrong": 0
+    }
+
+    save_users()  # если ты добавил сохранение
+
+    await message.answer("Главное меню", reply_markup=main_kb())
 # ===== ОБУЧЕНИЕ =====
 @dp.message_handler(lambda m: m.text == "📚 Начать обучение")
 async def choose_subject(message: types.Message):
