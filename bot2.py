@@ -12,13 +12,11 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ADMIN_ID = 8398266271
 
-# цены/лимиты
 FREE_MESSAGES = 10
 PRICE_7 = "1000 тг"
 PRICE_30 = "3000 тг"
 KASPI = "87001234567"
 
-# модель (можешь поменять при желании)
 MODEL = "gpt-4o-mini"
 
 logging.basicConfig(level=logging.INFO)
@@ -27,33 +25,45 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# ===== "БАЗА" (в памяти, без падений) =====
 users = {}
 
 # ===== КНОПКИ =====
 def main_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("📚 Начать обучение")
-    kb.add("💰 Доступ", "📊 Статус")
+    kb.add("💰 Купить доступ", "📊 Статус")
+    kb.add("🌐 Язык")
     return kb
 
 def subject_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("Математика", "История")
-    kb.add("Биология", "Английский")
-    kb.add("Назад")
+    kb.add("📐 Математика", "📜 История")
+    kb.add("🧬 Биология", "🧪 Химия")
+    kb.add("⬅️ Назад")
     return kb
 
 def level_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("База", "Средний", "Сложный")
-    kb.add("Назад")
+    kb.add("🟢 База", "🟡 Средний", "🔴 Сложный")
+    kb.add("⬅️ Назад")
+    return kb
+
+def answer_kb():
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("A", "B", "C", "D")
+    kb.add("⬅️ Назад")
+    return kb
+
+def lang_kb():
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("🇷🇺 Русский", "🇰🇿 Қазақша")
+    kb.add("⬅️ Назад")
     return kb
 
 def pay_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("💰 Оплатил")
-    kb.add("Назад")
+    kb.add("⬅️ Назад")
     return kb
 
 # ===== УТИЛИТЫ =====
@@ -62,52 +72,64 @@ def ensure_user(user_id):
         users[user_id] = {
             "step": "idle",
             "subject": None,
-            "level": None,
+            "level": "Средний",
+            "lang": "ru",
             "messages_used": 0,
             "premium_until": None,
-            "history": []  # диалог с GPT
+            "history": [],
+            "correct": 0,
+            "wrong": 0
         }
 
 def has_access(u):
-    if u["premium_until"] and datetime.now() < u["premium_until"]:
-        return True
-    return False
+    return u["premium_until"] and datetime.now() < u["premium_until"]
 
 def can_use(u):
-    if has_access(u):
-        return True
-    return u["messages_used"] < FREE_MESSAGES
+    return has_access(u) or u["messages_used"] < FREE_MESSAGES
 
-def system_prompt(subject, level):
+def adapt_level(u):
+    if u["correct"] >= 3:
+        return "Сложный"
+    elif u["wrong"] >= 3:
+        return "База"
+    return "Средний"
+
+def system_prompt(subject, level, lang):
+    language = "русском" if lang == "ru" else "казахском"
     return f"""
-Ты — строгий, но понятный преподаватель ЕНТ по предмету: {subject}.
-Уровень ученика: {level}.
+Ты — преподаватель ЕНТ по предмету: {subject}.
+Отвечай на {language} языке.
 
-Твоя задача:
-1) Задавать по одному вопросу за раз (ЕНТ формат: тест/задача/теория).
-2) После ответа ученика:
-   - сказать правильно или нет
-   - дать КОРОТКОЕ объяснение (2–4 предложения)
-   - если ошибка — показать правильный путь решения
-3) Затем задать следующий вопрос.
-4) Пиши на русском, чётко и без воды.
+ФОРМАТ ОБЯЗАТЕЛЕН:
 
-Не задавай слишком лёгкие вопросы вроде "2+2".
-Держи уровень, соответствующий ЕНТ.
+Вопрос:
+...
+A)
+B)
+C)
+D)
+
+После ответа:
+Правильно/Неправильно
+Правильный ответ: X
+Короткое объяснение
+
+Затем новый вопрос.
+
+Уровень: {level}
 """
 
 def ask_gpt(u, user_text=None):
-    messages = []
+    level = adapt_level(u)
 
-    # system
-    messages.append({"role": "system", "content": system_prompt(u["subject"], u["level"])})
+    messages = [
+        {"role": "system", "content": system_prompt(u["subject"], level, u["lang"])}
+    ]
 
-    # история
-    messages.extend(u["history"][-10:])
+    messages += u["history"][-10:]
 
-    # если первый раз — пусть сам задаст вопрос
     if not user_text:
-        messages.append({"role": "user", "content": "Начни занятие. Задай первый вопрос."})
+        messages.append({"role": "user", "content": "Начни тест"})
     else:
         messages.append({"role": "user", "content": user_text})
 
@@ -119,7 +141,6 @@ def ask_gpt(u, user_text=None):
 
     answer = resp.choices[0].message.content
 
-    # сохраняем в историю
     if user_text:
         u["history"].append({"role": "user", "content": user_text})
     u["history"].append({"role": "assistant", "content": answer})
@@ -130,26 +151,22 @@ def ask_gpt(u, user_text=None):
 @dp.message_handler(commands=['start'])
 async def start(message: types.Message):
     ensure_user(message.from_user.id)
-    await message.answer(
-        "🤖 AI ЕНТ Тренер\n\nНажми «Начать обучение»",
-        reply_markup=main_kb()
-    )
+    await message.answer("🤖 AI ЕНТ Тренер", reply_markup=main_kb())
 
 # ===== НАЧАТЬ =====
 @dp.message_handler(lambda m: m.text == "📚 Начать обучение")
 async def choose_subject(message: types.Message):
-    ensure_user(message.from_user.id)
     users[message.from_user.id]["step"] = "subject"
     await message.answer("Выбери предмет", reply_markup=subject_kb())
 
-@dp.message_handler(lambda m: m.text in ["Математика", "История", "Биология", "Английский"])
+@dp.message_handler(lambda m: any(x in m.text for x in ["Математика","История","Биология","Химия"]))
 async def choose_level(message: types.Message):
     u = users[message.from_user.id]
-    u["subject"] = message.text
+    u["subject"] = message.text.replace("📐 ","").replace("📜 ","").replace("🧬 ","").replace("🧪 ","")
     u["step"] = "level"
     await message.answer("Выбери уровень", reply_markup=level_kb())
 
-@dp.message_handler(lambda m: m.text in ["База", "Средний", "Сложный"])
+@dp.message_handler(lambda m: any(x in m.text for x in ["База","Средний","Сложный"]))
 async def start_ai(message: types.Message):
     u = users[message.from_user.id]
     u["level"] = message.text
@@ -157,85 +174,86 @@ async def start_ai(message: types.Message):
     u["history"] = []
 
     if not can_use(u):
-        await message.answer(
-            f"❌ Лимит закончился\n\nKaspi: {KASPI}\n7 дней — {PRICE_7}\n30 дней — {PRICE_30}",
-            reply_markup=pay_kb()
-        )
+        await message.answer(f"❌ Лимит\nKaspi: {KASPI}", reply_markup=pay_kb())
         return
 
     text = ask_gpt(u)
-    await message.answer(text)
+    await message.answer(text, reply_markup=answer_kb())
 
-# ===== ОСНОВНОЙ AI ДИАЛОГ =====
-@dp.message_handler(lambda m: True)
-async def ai_chat(message: types.Message):
-    ensure_user(message.from_user.id)
+# ===== ЯЗЫК =====
+@dp.message_handler(lambda m: m.text == "🌐 Язык")
+async def choose_lang(message: types.Message):
+    users[message.from_user.id]["step"] = "lang"
+    await message.answer("Выбери язык", reply_markup=lang_kb())
+
+@dp.message_handler(lambda m: "Русский" in m.text or "Қазақша" in m.text)
+async def set_lang(message: types.Message):
+    u = users[message.from_user.id]
+    u["lang"] = "kz" if "Қазақша" in message.text else "ru"
+    await message.answer("Язык изменён", reply_markup=main_kb())
+
+# ===== ОТВЕТЫ =====
+@dp.message_handler(lambda m: m.text in ["A","B","C","D"])
+async def answer_buttons(message: types.Message):
     u = users[message.from_user.id]
 
-    # навигация
-    if message.text == "Назад":
-        u["step"] = "idle"
-        await message.answer("Главное меню", reply_markup=main_kb())
-        return
-
-    if message.text == "💰 Доступ":
-        await message.answer(
-            f"Kaspi: {KASPI}\n7 дней — {PRICE_7}\n30 дней — {PRICE_30}",
-            reply_markup=pay_kb()
-        )
-        return
-
-    if message.text == "📊 Статус":
-        status = "Премиум" if has_access(u) else "Бесплатный"
-        await message.answer(
-            f"Статус: {status}\nИспользовано: {u['messages_used']}/{FREE_MESSAGES}"
-        )
-        return
-
-    if message.text == "💰 Оплатил":
-        await bot.send_message(
-            ADMIN_ID,
-            f"Оплата от {message.from_user.id} @{message.from_user.username}"
-        )
-        await message.answer("⏳ Проверяем оплату")
-        return
-
-    # если не в режиме AI — игнор
-    if u["step"] != "ai":
-        return
-
-    if not can_use(u):
-        await message.answer(
-            f"❌ Лимит закончился\n\nKaspi: {KASPI}\n7 дней — {PRICE_7}\n30 дней — {PRICE_30}",
-            reply_markup=pay_kb()
-        )
-        return
-
-    # считаем сообщение
     if not has_access(u):
         u["messages_used"] += 1
 
-    answer = ask_gpt(u, message.text)
-    await message.answer(answer)
+    # статистика
+    if "Правильный ответ" in u["history"][-1]["content"]:
+        correct = u["history"][-1]["content"].split("Правильный ответ:")[-1].strip()[0]
+        if message.text == correct:
+            u["correct"] += 1
+        else:
+            u["wrong"] += 1
 
-# ===== АДМИН ВЫДАЁТ ДОСТУП =====
+    text = ask_gpt(u, message.text)
+    await message.answer(text, reply_markup=answer_kb())
+
+# ===== МЕНЮ =====
+@dp.message_handler(lambda m: m.text == "📊 Статус")
+async def status(message: types.Message):
+    u = users[message.from_user.id]
+    await message.answer(
+        f"Правильно: {u['correct']}\nОшибки: {u['wrong']}\nИспользовано: {u['messages_used']}"
+    )
+
+@dp.message_handler(lambda m: m.text == "💰 Купить доступ")
+async def pay(message: types.Message):
+    await message.answer(
+        f"Kaspi: {KASPI}\n7 дней — {PRICE_7}\n30 дней — {PRICE_30}",
+        reply_markup=pay_kb()
+    )
+
+@dp.message_handler(lambda m: m.text == "💰 Оплатил")
+async def paid(message: types.Message):
+    await bot.send_message(ADMIN_ID, f"Оплата от {message.from_user.id}")
+    await message.answer("⏳ Проверка")
+
+@dp.message_handler(lambda m: m.text == "⬅️ Назад")
+async def back(message: types.Message):
+    users[message.from_user.id]["step"] = "idle"
+    await message.answer("Главное меню", reply_markup=main_kb())
+
+# ===== АДМИН =====
 @dp.message_handler(commands=['give7'])
 async def give7(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return
-    user_id = int(message.get_args())
-    ensure_user(user_id)
-    users[user_id]["premium_until"] = datetime.now() + timedelta(days=7)
-    await message.answer("Дал 7 дней")
+    uid = int(message.get_args())
+    ensure_user(uid)
+    users[uid]["premium_until"] = datetime.now() + timedelta(days=7)
+    await message.answer("OK 7")
 
 @dp.message_handler(commands=['give30'])
 async def give30(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return
-    user_id = int(message.get_args())
-    ensure_user(user_id)
-    users[user_id]["premium_until"] = datetime.now() + timedelta(days=30)
-    await message.answer("Дал 30 дней")
+    uid = int(message.get_args())
+    ensure_user(uid)
+    users[uid]["premium_until"] = datetime.now() + timedelta(days=30)
+    await message.answer("OK 30")
 
 # ===== ЗАПУСК =====
 if __name__ == "__main__":
