@@ -212,15 +212,50 @@ async def pay(message: types.Message):
 
 @dp.message_handler(lambda m: m.text == "💰 Оплатил")
 async def paid(message: types.Message):
-    username = message.from_user.username
-    uid = message.from_user.id
+    user = message.from_user
 
-    await bot.send_message(
-        ADMIN_ID,
-        f"💰 Оплата!\nID: {uid}\nUsername: @{username}"
+    kb = InlineKeyboardMarkup()
+    kb.add(
+        InlineKeyboardButton("⚡ 7 дней", callback_data=f"give7_{user.id}"),
+        InlineKeyboardButton("🚀 30 дней", callback_data=f"give30_{user.id}")
     )
 
+    text = (
+        f"💰 Новый платеж!\n\n"
+        f"👤 @{user.username}\n"
+        f"🆔 ID: {user.id}\n"
+        f"📛 Имя: {user.first_name}"
+    )
+
+    await bot.send_message(ADMIN_ID, text, reply_markup=kb)
     await message.answer("⏳ Ждите подтверждения")
+
+@dp.callback_query_handler(lambda c: c.data.startswith("give7_"))
+async def give7_callback(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+
+    uid = int(callback.data.split("_")[1])
+    ensure_user(uid)
+
+    users[uid]["premium_until"] = datetime.now() + timedelta(days=7)
+
+    await bot.send_message(uid, "🎉 Вам выдан доступ на 7 дней!")
+    await callback.message.edit_text("✅ Выдано 7 дней")
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith("give30_"))
+async def give30_callback(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+
+    uid = int(callback.data.split("_")[1])
+    ensure_user(uid)
+
+    users[uid]["premium_until"] = datetime.now() + timedelta(days=30)
+
+    await bot.send_message(uid, "🎉 Вам выдан доступ на 30 дней!")
+    await callback.message.edit_text("✅ Выдано 30 дней")
 
 # ===== ОБУЧЕНИЕ =====
 @dp.message_handler(lambda m: m.text == "📚 Начать обучение")
