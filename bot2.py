@@ -199,16 +199,24 @@ async def start_ai(message: types.Message):
     ensure_user(message.from_user.id)
     u = users[message.from_user.id]
 
-    # чистим текст от эмодзи
+    # чистим текст
     text = message.text
     for e in ["🟢", "🟡", "🔴"]:
         text = text.replace(e, "")
-
     text = text.strip()
 
     u["level"] = text
     u["step"] = "ai"
     u["history"] = []
+
+    print("LEVEL CHOSEN:", text)  # 👈 для проверки в логах
+
+    if not can_use(u):
+        await message.answer(
+            f"❌ Лимит закончился\n\nKaspi: {KASPI}\n7 дней — {PRICE_7}\n30 дней — {PRICE_30}",
+            reply_markup=pay_kb()
+        )
+        return
 
     answer = ask_gpt(u)
 
@@ -216,8 +224,7 @@ async def start_ai(message: types.Message):
     kb.add("A", "B", "C", "D")
     kb.add("⬅️ Назад")
 
-    await message.answer(answer, reply_markup=kb)
-    
+    await message.answer(answer, reply_markup=kb)    
 # ===== ЯЗЫК =====
 @dp.message_handler(lambda m: m.text == "🌐 Язык")
 async def choose_lang(message: types.Message):
