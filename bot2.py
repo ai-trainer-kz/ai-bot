@@ -2,7 +2,7 @@ import os
 import logging
 from datetime import datetime, timedelta
 
-import psycopg2
+# import psycopg2
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils import executor
@@ -23,28 +23,21 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 
 # ===== DB =====
-conn = psycopg2.connect(DATABASE_URL)
-cursor = conn.cursor()
+# conn = psycopg2.connect(DATABASE_URL)
+# cursor = conn.cursor()
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    name TEXT,
-    lang TEXT,
-    subject TEXT,
-    level TEXT,
-    step TEXT,
-    q INTEGER DEFAULT 0,
-    score INTEGER DEFAULT 0,
-    total INTEGER DEFAULT 0,
-    premium BOOLEAN DEFAULT FALSE,
-    expires TIMESTAMP,
-    free_left INTEGER DEFAULT 10,
-    last TEXT
-)
-""")
-conn.commit()
-
+# cursor.execute("""
+# CREATE TABLE IF NOT EXISTS users (
+#     id TEXT PRIMARY KEY,
+#     name TEXT,
+#     lang TEXT,
+#     subject TEXT,
+#     level TEXT,
+#     step TEXT,
+#     q INTEGER DEFAULT 0
+# )
+# """)
+# conn.commit()
 
 # ===== UTILS =====
 def get_user(uid):
