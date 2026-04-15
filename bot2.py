@@ -124,15 +124,10 @@ def has_access(u):
 def can_use(u):
     return has_access(u) or u["messages_used"] < FREE_MESSAGES
 
-def adapt_level(u):
-    if u["correct"] >= 3:
-        return "Сложный"
-    elif u["wrong"] >= 3:
-        return "База"
-    return "Средний"
-
 # ===== GPT =====
 def system_prompt(subject, level, lang):
+    if lang == "kz":
+        return f"Сен ҰБТ мұғалімі ({subject}). Деңгей: {level}"
     return f"Ты преподаватель ЕНТ ({subject}). Уровень: {level}"
 
 def ask_gpt(u, user_text=None):
@@ -164,14 +159,12 @@ async def start(message: types.Message):
     ensure_user(message.from_user.id)
     await message.answer("🤖 AI ЕНТ Тренер", reply_markup=main_kb(message.from_user.id))
 
-# ===== НАЗАД =====
-@dp.message_handler(lambda m: "Назад" in (m.text or ""))
+# ===== НАЗАД (FIX) =====
+@dp.message_handler(lambda m: m.text == "⬅️ Назад")
 async def back(message: types.Message):
     ensure_user(message.from_user.id)
-
     u = users[message.from_user.id]
 
-    # 🔥 ЧИСТИМ ТОЛЬКО ТЕСТ
     u["step"] = "idle"
     u["history"] = []
     u["correct"] = 0
@@ -180,7 +173,23 @@ async def back(message: types.Message):
 
     save_users()
 
-    await message.answer("Главное меню", reply_markup=main_kb())
+    await message.answer("Главное меню", reply_markup=main_kb(message.from_user.id))
+
+# ===== ЯЗЫК (FIX) =====
+@dp.message_handler(lambda m: m.text == "🌐 Язык")
+async def choose_lang(message: types.Message):
+    await message.answer("Выбери язык", reply_markup=lang_kb())
+
+@dp.message_handler(lambda m: m.text in ["🇷🇺 Русский", "🇰🇿 Қазақша"])
+async def set_lang(message: types.Message):
+    ensure_user(message.from_user.id)
+    u = users[message.from_user.id]
+
+    u["lang"] = "kz" if "Қазақша" in message.text else "ru"
+    save_users()
+
+    await message.answer("Язык обновлен", reply_markup=main_kb(message.from_user.id))
+
 # ===== ОБУЧЕНИЕ =====
 @dp.message_handler(lambda m: m.text == "📚 Начать обучение")
 async def choose_subject(message: types.Message):
@@ -252,6 +261,9 @@ async def paid(message: types.Message):
 # ===== CALLBACK =====
 @dp.callback_query_handler(lambda c: c.data.startswith("give7_"))
 async def give7(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+
     uid = int(callback.data.split("_")[1])
     ensure_user(uid)
 
@@ -264,6 +276,9 @@ async def give7(callback: types.CallbackQuery):
 
 @dp.callback_query_handler(lambda c: c.data.startswith("give30_"))
 async def give30(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+
     uid = int(callback.data.split("_")[1])
     ensure_user(uid)
 
@@ -273,6 +288,24 @@ async def give30(callback: types.CallbackQuery):
 
     await bot.send_message(uid, "🎉 Доступ на 30 дней!")
     await callback.message.edit_text("✅ 30 дней")
+
+# ===== АДМИН =====
+@dp.message_handler(lambda m: m.text == "👑 Админ")
+async def admin_panel(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    await message.answer("Админ панель", reply_markup=admin_kb())
+
+@dp.message_handler(lambda m: m.text == "📋 Пользователи")
+async def users_list(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    text = "👥 Пользователи:\n\n"
+    for uid in users:
+        text += f"{uid}\n"
+
+    await message.answer(text)
 
 # ===== ЗАПУСК =====
 if __name__ == "__main__":
