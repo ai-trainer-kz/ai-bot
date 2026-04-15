@@ -97,41 +97,54 @@ def admin_kb(user_id):
 # ======================
 
 async def generate_question(subject, lang):
-    prompt = f"""
-Сгенерируй 1 тестовый вопрос по предмету {subject} на языке {lang}.
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"""
+Сделай 1 тестовый вопрос по предмету {subject}.
+Язык: {"русский" if lang=="ru" else "казахский"}.
+
 Формат строго:
+
 Вопрос
-A. ...
-B. ...
-C. ...
-D. ...
+A. вариант
+B. вариант
+C. вариант
+D. вариант
 Ответ: A/B/C/D
 """
-
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}]
+                }
+            ]
         )
 
         text = response.choices[0].message.content.strip()
+        parts = [p for p in text.split("\n") if p.strip()]
 
-        lines = text.split("\n")
+        if len(parts) < 6:
+            raise Exception("Формат ответа сломан")
 
-        q = lines[0]
-        answers = [
-            lines[1][3:],
-            lines[2][3:],
-            lines[3][3:],
-            lines[4][3:]
-        ]
-        correct = lines[5].split(":")[1].strip()
-
-        return {"q": q, "a": answers, "correct": correct}
+        return {
+            "q": parts[0],
+            "a": [
+                parts[1][3:],
+                parts[2][3:],
+                parts[3][3:],
+                parts[4][3:]
+            ],
+            "correct": parts[5].split(":")[1].strip()
+        }
 
     except Exception as e:
         print("GPT ERROR:", e)
-        return {"q": "Ошибка генерации", "a": ["1","2","3","4"], "correct": "A"}
+
+        return {
+            "q": "2+2=?",
+            "a": ["3","4","5","6"],
+            "correct": "B"
+        }        
 # ======================
 # ДОСТУП
 # ======================
