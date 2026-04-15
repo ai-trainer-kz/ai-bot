@@ -285,7 +285,7 @@ async def start_ai(message: types.Message):
     import re
     match = re.search(r"Правильный ответ[:\s]*([ABCD])", text, re.IGNORECASE)
     if match:
-    u["correct"] = match.group(1)
+        u["correct"] = match.group(1)
 
     text = re.sub(r"Правильный ответ[:\s]*[ABCD]", "", text)
 
