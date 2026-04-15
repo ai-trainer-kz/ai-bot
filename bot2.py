@@ -146,6 +146,9 @@ def ask_gpt(u, user_text=None):
 
     answer = resp.choices[0].message.content
 
+    answer = answer.replace("\\(", "").replace("\\)", "")
+    answer = answer.replace("**", "")
+
     if user_text:
         u["history"].append({"role": "user", "content": user_text})
     u["history"].append({"role": "assistant", "content": answer})
