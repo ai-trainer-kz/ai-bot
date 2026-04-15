@@ -2,25 +2,22 @@ import os
 import json
 import logging
 import sqlite3
+import os
 import openai
-from datetime import datetime, timedelta
 
+from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils import executor
 
-# ======================
-# НАСТРОЙКИ
-# ======================
-
-API_TOKEN = "TOKEN"
+API_TOKEN = os.getenv("8315601912:AAHoo0mcZHJV8qtlDdjze7HQvM6tXgM9U88")  
 ADMIN_ID = 8398266271
+
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
+bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
 
 # ======================
@@ -116,21 +113,27 @@ D. ...
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4o-mini",
-            messages=[{"role":"user","content":prompt}]
+            messages=[{"role": "user", "content": prompt}]
         )
 
-        text = response.choices[0].message.content
+        text = response.choices[0].message.content.strip()
 
         lines = text.split("\n")
+
         q = lines[0]
-        answers = [lines[1][3:], lines[2][3:], lines[3][3:], lines[4][3:]]
+        answers = [
+            lines[1][3:],
+            lines[2][3:],
+            lines[3][3:],
+            lines[4][3:]
+        ]
         correct = lines[5].split(":")[1].strip()
 
         return {"q": q, "a": answers, "correct": correct}
 
-    except:
-        return {"q":"Ошибка генерации","a":["1","2","3","4"],"correct":"A"}
-
+    except Exception as e:
+        print("GPT ERROR:", e)
+        return {"q": "Ошибка генерации", "a": ["1","2","3","4"], "correct": "A"}
 # ======================
 # ДОСТУП
 # ======================
