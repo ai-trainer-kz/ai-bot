@@ -2,287 +2,203 @@ import os
 import logging
 from datetime import datetime, timedelta
 
-# import psycopg2
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup
 from aiogram.utils import executor
-from openai import OpenAI
 
 # ===== CONFIG =====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-DATABASE_URL = os.getenv("DATABASE_URL")
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 ADMIN_ID = 8398266271
-KASPI_NUMBER = "4400430352720152"
-SUPPORT = "@ai_teacher1_support"
 
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 
-# ===== DB =====
-# conn = psycopg2.connect(DATABASE_URL)
-# cursor = conn.cursor()
+# ===== "БАЗА" =====
+users = {}
 
-# cursor.execute("""
-# CREATE TABLE IF NOT EXISTS users (
-#     id TEXT PRIMARY KEY,
-#     name TEXT,
-#     lang TEXT,
-#     subject TEXT,
-#     level TEXT,
-#     step TEXT,
-#     q INTEGER DEFAULT 0
-# )
-# """)
-# conn.commit()
-
-# ===== UTILS =====
-def get_user(uid):
-    cursor.execute("SELECT * FROM users WHERE id=%s", (uid,))
-    return cursor.fetchone()
-
-
-def create_user(uid, name):
-    cursor.execute("""
-    INSERT INTO users (id, name, lang, step)
-    VALUES (%s, %s, 'ru', 'lang')
-    ON CONFLICT (id) DO NOTHING
-    """, (uid, name))
-    conn.commit()
-
-
-def update(uid, field, value):
-    cursor.execute(f"UPDATE users SET {field}=%s WHERE id=%s", (value, uid))
-    conn.commit()
-
+FREE_LIMIT = 10
 
 # ===== КНОПКИ =====
 def lang_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("Русский 🇷🇺", "Қазақ 🇰🇿")
+    kb.add("🇷🇺 Русский", "🇰🇿 Қазақша")
     return kb
-
 
 def subject_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("📐 Математика", "📖 История", "🧪 Химия")
+    kb.add("Математика", "История")
+    kb.add("Биология", "Назад")
     return kb
-
 
 def level_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("🟢 Лёгкий", "🟡 Средний", "🔴 Сложный")
+    kb.add("Легкий", "Средний", "Сложный")
+    kb.add("Назад")
     return kb
 
+def start_kb():
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("Начать тест")
+    kb.add("Назад")
+    return kb
 
-def control_kb():
+def answer_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("A", "B", "C", "D")
-    kb.add("⬅️ Назад", "🏠 Домой")
+    kb.add("Назад")
     return kb
-
 
 def pay_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("💳 Я оплатил", "🏠 Домой")
+    kb.add("💰 Оплатил", "Назад")
     return kb
 
-
-def admin_kb(uid):
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="7 дней", callback_data=f"give7_{uid}"),
-            InlineKeyboardButton(text="30 дней", callback_data=f"give30_{uid}")
-        ]
-    ])
-
-
-# ===== START =====
+# ===== СТАРТ =====
 @dp.message_handler(commands=['start'])
 async def start(message: types.Message):
-    await message.answer("Бот работает 🚀")
+    users[message.from_user.id] = {
+        "step": "lang",
+        "q": 0,
+        "score": 0,
+        "free_used": 0,
+        "premium_until": None
+    }
+    await message.answer("Выберите язык", reply_markup=lang_kb())
 
-    create_user(uid, name)
+# ===== ЯЗЫК =====
+@dp.message_handler(lambda m: m.text in ["🇷🇺 Русский", "🇰🇿 Қазақша"])
+async def lang(message: types.Message):
+    users[message.from_user.id]["step"] = "subject"
+    await message.answer("Выберите предмет", reply_markup=subject_kb())
 
-    await msg.answer("Выбери язык 🌍", reply_markup=lang_kb())
+# ===== ПРЕДМЕТ =====
+@dp.message_handler(lambda m: m.text in ["Математика", "История", "Биология"])
+async def subject(message: types.Message):
+    users[message.from_user.id]["step"] = "level"
+    await message.answer("Выберите уровень", reply_markup=level_kb())
 
+# ===== УРОВЕНЬ =====
+@dp.message_handler(lambda m: m.text in ["Легкий", "Средний", "Сложный"])
+async def level(message: types.Message):
+    users[message.from_user.id]["step"] = "ready"
+    await message.answer("Готов начать?", reply_markup=start_kb())
 
-# ===== LANG =====
-@dp.message_handler(lambda m: "🇷🇺" in m.text or "🇰🇿" in m.text)
-async def set_lang(msg: types.Message):
-    uid = str(msg.from_user.id)
-
-    lang = "ru" if "🇷🇺" in msg.text else "kz"
-
-    update(uid, "lang", lang)
-    update(uid, "step", "subject")
-
-    await msg.answer("Выбери предмет 📚", reply_markup=subject_kb())
-
-
-# ===== SUBJECT =====
-@dp.message_handler(lambda m: m.text.startswith("📐") or m.text.startswith("📖") or m.text.startswith("🧪"))
-async def set_subject(msg: types.Message):
-    uid = str(msg.from_user.id)
-
-    update(uid, "subject", msg.text)
-    update(uid, "step", "level")
-
-    await msg.answer("Выбери уровень 🎯", reply_markup=level_kb())
-
-
-# ===== LEVEL =====
-@dp.message_handler(lambda m: "🟢" in m.text or "🟡" in m.text or "🔴" in m.text)
-async def set_level(msg: types.Message):
-    uid = str(msg.from_user.id)
-
-    update(uid, "level", msg.text)
-    update(uid, "step", "test")
-    update(uid, "q", 0)
-    update(uid, "score", 0)
-
-    await send_q(msg)
-
-
-# ===== ACCESS =====
+# ===== ПРОВЕРКА ДОСТУПА =====
 def has_access(user):
-    premium = user[10]
-    expires = user[11]
-    free = user[12]
-
-    if premium and expires and datetime.now() < expires:
-        return True
-
-    if free and free > 0:
-        return True
-
+    if user["premium_until"]:
+        if datetime.now() < user["premium_until"]:
+            return True
     return False
 
+# ===== СТАРТ ТЕСТА =====
+@dp.message_handler(lambda m: m.text == "Начать тест")
+async def start_test(message: types.Message):
+    user = users[message.from_user.id]
 
-# ===== QUESTION =====
-async def send_q(msg):
-    uid = str(msg.from_user.id)
-    user = get_user(uid)
-
-    if not has_access(user):
-        await msg.answer("❌ Нет доступа\n💎 Купи доступ", reply_markup=pay_kb())
-        return
-
-    q_count = user[6]
-
-    if q_count >= 10:
-        await finish(msg)
-        return
-
-    try:
-        res = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{
-                "role": "user",
-                "content": f"ЕНТ вопрос {user[3]} {user[4]} 4 варианта A B C D правильный ответ"
-            }]
+    if not has_access(user) and user["free_used"] >= FREE_LIMIT:
+        await message.answer(
+            "❌ Бесплатный лимит закончился\n\n"
+            "Kaspi: 87001234567\n"
+            "7 дней — 1000 тг\n30 дней — 3000 тг\n\n"
+            "После оплаты нажми 'Оплатил'",
+            reply_markup=pay_kb()
         )
-        q = res.choices[0].message.content
-    except:
-        q = "2+2=?\nA.3\nB.4\nC.5\nD.6"
+        return
 
-    update(uid, "last", q)
+    user["q"] = 1
+    user["score"] = 0
+    user["step"] = "test"
 
-    await msg.answer(q, reply_markup=control_kb())
+    await send_question(message)
 
+# ===== ВОПРОС =====
+async def send_question(message):
+    user = users[message.from_user.id]
+    q = user["q"]
 
-# ===== ANSWER =====
+    text = f"Вопрос {q}\nСколько будет 2+2?\n\nA)3\nB)4\nC)5\nD)6"
+    await message.answer(text, reply_markup=answer_kb())
+
+# ===== ОТВЕТ =====
 @dp.message_handler(lambda m: m.text in ["A", "B", "C", "D"])
-async def answer(msg: types.Message):
-    uid = str(msg.from_user.id)
-    user = get_user(uid)
+async def answer(message: types.Message):
+    user = users[message.from_user.id]
 
-    try:
-        res = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{
-                "role": "user",
-                "content": f"{user[13]} ответ {msg.text} объясни"
-            }]
-        )
-        txt = res.choices[0].message.content
-    except:
-        txt = "Правильный ответ: B"
+    if message.text == "B":
+        user["score"] += 1
 
-    if "B" in txt:
-        update(uid, "score", user[7] + 1)
+    user["q"] += 1
+    user["free_used"] += 1
 
-    # уменьшаем free
-    if user[12] > 0:
-        update(uid, "free_left", user[12] - 1)
+    if user["q"] > 5:
+        await message.answer(f"Результат: {user['score']}/5")
+        user["step"] = "ready"
+        return
 
-    update(uid, "q", user[6] + 1)
+    await send_question(message)
 
-    await msg.answer(txt)
-    await send_q(msg)
+# ===== ОПЛАТИЛ =====
+@dp.message_handler(lambda m: m.text == "💰 Оплатил")
+async def paid(message: types.Message):
+    user_id = message.from_user.id
 
-
-# ===== FINISH =====
-async def finish(msg):
-    uid = str(msg.from_user.id)
-    user = get_user(uid)
-
-    update(uid, "total", user[8] + 1)
-
-    await msg.answer(f"🏁 Результат: {user[7]}/10")
-
-    if not user[10]:
-        await ask_pay(msg)
-
-
-# ===== PAYMENT =====
-async def ask_pay(msg):
-    await msg.answer(
-        f"💳 Kaspi: {KASPI_NUMBER}\n7 дней — 5000₸\n30 дней — 10000₸\n\n{SUPPORT}",
-        reply_markup=pay_kb()
-    )
-
-
-@dp.message_handler(lambda m: "оплат" in m.text.lower())
-async def paid(msg: types.Message):
     await bot.send_message(
         ADMIN_ID,
-        f"Оплата от {msg.from_user.full_name} ({msg.from_user.id})",
-        reply_markup=admin_kb(msg.from_user.id)
+        f"Пользователь оплатил:\nID: {user_id}\n@{message.from_user.username}"
     )
 
+    await message.answer("⏳ Проверяем оплату...")
 
-@dp.callback_query_handler(lambda c: "give" in c.data)
-async def give(call):
-    uid = call.data.split("_")[1]
+# ===== АДМИН ВЫДАЁТ ДОСТУП =====
+@dp.message_handler(commands=['give7'])
+async def give7(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
 
-    days = 7 if "7" in call.data else 30
+    user_id = int(message.get_args())
+    users[user_id]["premium_until"] = datetime.now() + timedelta(days=7)
 
-    cursor.execute("""
-    UPDATE users
-    SET premium=TRUE,
-        expires=%s
-    WHERE id=%s
-    """, (datetime.now() + timedelta(days=days), uid))
-    conn.commit()
+    await message.answer("Выдано 7 дней")
 
-    await bot.send_message(uid, "✅ Доступ активирован")
+@dp.message_handler(commands=['give30'])
+async def give30(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
 
+    user_id = int(message.get_args())
+    users[user_id]["premium_until"] = datetime.now() + timedelta(days=30)
 
-# ===== BACK =====
-@dp.message_handler(lambda m: "Назад" in m.text)
-async def back(msg: types.Message):
-    await msg.answer("Назад", reply_markup=subject_kb())
+    await message.answer("Выдано 30 дней")
 
+# ===== НАЗАД =====
+@dp.message_handler(lambda m: m.text == "Назад")
+async def back(message: types.Message):
+    user = users.get(message.from_user.id)
 
-# ===== HOME =====
-@dp.message_handler(lambda m: "Домой" in m.text)
-async def home(msg: types.Message):
-    await start(msg)
+    if not user:
+        await start(message)
+        return
 
+    step = user["step"]
 
+    if step == "subject":
+        user["step"] = "lang"
+        await message.answer("Выберите язык", reply_markup=lang_kb())
+
+    elif step == "level":
+        user["step"] = "subject"
+        await message.answer("Выберите предмет", reply_markup=subject_kb())
+
+    elif step == "ready":
+        user["step"] = "level"
+        await message.answer("Выберите уровень", reply_markup=level_kb())
+
+    elif step == "test":
+        user["step"] = "ready"
+        await message.answer("Готов начать?", reply_markup=start_kb())
+
+# ===== ЗАПУСК =====
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
