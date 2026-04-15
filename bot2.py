@@ -101,10 +101,9 @@ def admin_kb(uid):
 
 
 # ===== START =====
-@dp.message_handler(commands=["start"])
-async def start(msg: types.Message):
-    uid = str(msg.from_user.id)
-    name = msg.from_user.full_name
+@dp.message_handler(commands=['start'])
+async def start(message: types.Message):
+    await message.answer("Бот работает 🚀")
 
     create_user(uid, name)
 
