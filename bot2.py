@@ -169,20 +169,16 @@ async def start(message: types.Message):
 async def back(message: types.Message):
     ensure_user(message.from_user.id)
 
-    # 🔥 ПОЛНЫЙ СБРОС
-    users[message.from_user.id] = {
-        "step": "idle",
-        "subject": None,
-        "level": "Средний",
-        "lang": users[message.from_user.id].get("lang", "ru"),
-        "messages_used": users[message.from_user.id].get("messages_used", 0),
-        "premium_until": users[message.from_user.id].get("premium_until"),
-        "history": [],
-        "correct": 0,
-        "wrong": 0
-    }
+    u = users[message.from_user.id]
 
-    save_users()  # если ты добавил сохранение
+    # 🔥 ЧИСТИМ ТОЛЬКО ТЕСТ
+    u["step"] = "idle"
+    u["history"] = []
+    u["correct"] = 0
+    u["wrong"] = 0
+    u["subject"] = None
+
+    save_users()
 
     await message.answer("Главное меню", reply_markup=main_kb())
 # ===== ОБУЧЕНИЕ =====
