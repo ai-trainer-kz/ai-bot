@@ -44,7 +44,6 @@ def load_users():
         with open("users.json", "r", encoding="utf-8") as f:
             data = json.load(f)
             users = data
-
             for uid in users:
                 if users[uid]["premium_until"]:
                     users[uid]["premium_until"] = datetime.fromisoformat(users[uid]["premium_until"])
@@ -57,10 +56,8 @@ def main_kb(user_id=None):
     kb.add("📚 Начать обучение")
     kb.add("💰 Купить доступ", "📊 Статус")
     kb.add("🌐 Язык")
-
     if user_id == ADMIN_ID:
         kb.add("👑 Админ")
-
     return kb
 
 def subject_kb():
@@ -111,7 +108,7 @@ def ensure_user(user_id):
             "messages_used": 0,
             "premium_until": None,
             "history": [],
-            "correct": 0,
+            "correct": None,
             "wrong": 0,
             "paid": False,
             "created_at": datetime.now().isoformat()
@@ -149,12 +146,6 @@ D) ...
 
 ДҰРЫС ЖАУАП:
 A / B / C / D
-
-ЕРЕЖЕ:
-- Алдымен тек сұрақ бер
-- Пайдаланушы жауап бергеннен кейін:
-    - Дұрыс па / Қате екенін айт
-    - Қысқа түсіндірме бер
 """
     return f"""
 Ты преподаватель ЕНТ ({subject}). Уровень: {level}.
@@ -166,7 +157,7 @@ A / B / C / D
 - 4 варианта ответа
 
 ЗАПРЕЩЕНО:
-- НЕ используй LaTeX (\( \), \[ \])
+- НЕ используй LaTeX
 
 ФОРМАТ:
 Вопрос:
@@ -178,13 +169,8 @@ D) ...
 
 Правильный ответ:
 A / B / C / D
-
-ПРАВИЛА:
-- Сначала давай только вопрос
-- После ответа пользователя:
-    - Скажи правильно или нет
-    - Дай короткое объяснение
 """
+
 def ask_gpt(u, user_text=None):
     messages = [{"role": "system", "content": system_prompt(u["subject"], u["level"], u["lang"])}]
     messages += u["history"][-10:]
@@ -201,12 +187,8 @@ def ask_gpt(u, user_text=None):
 
     answer = resp.choices[0].message.content
 
-    # чистка текста
     for s in ["\\(", "\\)", "\\[", "\\]", "**"]:
         answer = answer.replace(s, "")
-
-    # замена мат. символов
-    answer = answer.replace("\\times", "×")
 
     if user_text:
         u["history"].append({"role": "user", "content": user_text})
@@ -220,37 +202,6 @@ def ask_gpt(u, user_text=None):
 async def start(message: types.Message):
     ensure_user(message.from_user.id)
     await message.answer("🤖 AI ЕНТ Тренер", reply_markup=main_kb(message.from_user.id))
-
-# ===== НАЗАД (FIX) =====
-@dp.message_handler(lambda m: m.text == "⬅️ Назад")
-async def back(message: types.Message):
-    ensure_user(message.from_user.id)
-    u = users[message.from_user.id]
-
-    u["step"] = "idle"
-    u["history"] = []
-    u["correct"] = 0
-    u["wrong"] = 0
-    u["subject"] = None
-
-    save_users()
-
-    await message.answer("Главное меню", reply_markup=main_kb(message.from_user.id))
-
-# ===== ЯЗЫК (FIX) =====
-@dp.message_handler(lambda m: m.text == "🌐 Язык")
-async def choose_lang(message: types.Message):
-    await message.answer("Выбери язык", reply_markup=lang_kb())
-
-@dp.message_handler(lambda m: m.text in ["🇷🇺 Русский", "🇰🇿 Қазақша"])
-async def set_lang(message: types.Message):
-    ensure_user(message.from_user.id)
-    u = users[message.from_user.id]
-
-    u["lang"] = "kz" if "Қазақша" in message.text else "ru"
-    save_users()
-
-    await message.answer("Язык обновлен", reply_markup=main_kb(message.from_user.id))
 
 # ===== ОБУЧЕНИЕ =====
 @dp.message_handler(lambda m: m.text == "📚 Начать обучение")
@@ -279,7 +230,9 @@ async def start_ai(message: types.Message):
     if not can_use(u):
         await message.answer(f"❌ Лимит\nKaspi: {KASPI}", reply_markup=pay_kb())
         return
+
     text = ask_gpt(u)
+
     import re
     match = re.search(r"Правильный ответ[:\s]*([ABCD])", text)
     if match:
@@ -287,99 +240,42 @@ async def start_ai(message: types.Message):
 
     text = re.sub(r"Правильный ответ[:\s]*[ABCD]", "", text)
 
-    await message.answer(text, reply_markup=answer_kb()) 
-    
+    await message.answer(text, reply_markup=answer_kb())
+
+# ===== ОТВЕТЫ =====
+@dp.message_handler(lambda m: m.text in ["A", "B", "C", "D"])
+async def answer_buttons(message: types.Message):
+    u = users[message.from_user.id]
+
     if u["step"] != "ai":
         return
 
-# потом уже ask_gpt и всё остальное
+    user_answer = message.text
+    correct = u.get("correct")
 
-    if not has_access(u):
-        u["messages_used"] += 1
+    if not correct:
+        await message.answer("Ошибка. Попробуй ещё раз.")
+        return
 
-    save_users()
-    text = ask_gpt(u, message.text)
+    if user_answer == correct:
+        result = "✅ Правильно!"
+    else:
+        result = f"❌ Неправильно! Правильный ответ: {correct}"
+
+    explain = ask_gpt(u, f"Объясни коротко, почему правильный ответ {correct}")
+
+    await message.answer(result + "\n\n" + explain)
+
+    text = ask_gpt(u)
 
     import re
     match = re.search(r"Правильный ответ[:\s]*([ABCD])", text)
     if match:
-    u["correct"] = match.group(1)
+        u["correct"] = match.group(1)
 
-    text = re.sub(r"Правильный ответ.*", "", text)
+    text = re.sub(r"Правильный ответ[:\s]*[ABCD]", "", text)
 
     await message.answer(text, reply_markup=answer_kb())
-
-# ===== ОПЛАТА =====
-@dp.message_handler(lambda m: m.text == "💰 Купить доступ")
-async def pay(message: types.Message):
-    await message.answer(f"Kaspi: {KASPI}\n7 дней — {PRICE_7}\n30 дней — {PRICE_30}", reply_markup=pay_kb())
-
-@dp.message_handler(lambda m: m.text == "💰 Оплатил")
-async def paid(message: types.Message):
-    user = message.from_user
-
-    kb = InlineKeyboardMarkup()
-    kb.add(
-        InlineKeyboardButton("⚡ 7 дней", callback_data=f"give7_{user.id}"),
-        InlineKeyboardButton("🚀 30 дней", callback_data=f"give30_{user.id}")
-    )
-
-    await bot.send_message(
-        ADMIN_ID,
-        f"💰 Новый платеж!\n@{user.username}\nID: {user.id}",
-        reply_markup=kb
-    )
-
-    await message.answer("⏳ Ждите подтверждения")
-
-# ===== CALLBACK =====
-@dp.callback_query_handler(lambda c: c.data.startswith("give7_"))
-async def give7(callback: types.CallbackQuery):
-    if callback.from_user.id != ADMIN_ID:
-        return
-
-    uid = int(callback.data.split("_")[1])
-    ensure_user(uid)
-
-    users[uid]["premium_until"] = datetime.now() + timedelta(days=7)
-    users[uid]["paid"] = True
-    save_users()
-
-    await bot.send_message(uid, "🎉 Доступ на 7 дней!")
-    await callback.message.edit_text("✅ 7 дней")
-
-@dp.callback_query_handler(lambda c: c.data.startswith("give30_"))
-async def give30(callback: types.CallbackQuery):
-    if callback.from_user.id != ADMIN_ID:
-        return
-
-    uid = int(callback.data.split("_")[1])
-    ensure_user(uid)
-
-    users[uid]["premium_until"] = datetime.now() + timedelta(days=30)
-    users[uid]["paid"] = True
-    save_users()
-
-    await bot.send_message(uid, "🎉 Доступ на 30 дней!")
-    await callback.message.edit_text("✅ 30 дней")
-
-# ===== АДМИН =====
-@dp.message_handler(lambda m: m.text == "👑 Админ")
-async def admin_panel(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-    await message.answer("Админ панель", reply_markup=admin_kb())
-
-@dp.message_handler(lambda m: m.text == "📋 Пользователи")
-async def users_list(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-
-    text = "👥 Пользователи:\n\n"
-    for uid in users:
-        text += f"{uid}\n"
-
-    await message.answer(text)
 
 # ===== ЗАПУСК =====
 if __name__ == "__main__":
