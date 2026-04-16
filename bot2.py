@@ -427,16 +427,23 @@ async def answer_buttons(message: types.Message):
     user_answer = message.text
     correct = u.get("correct")
 
-    if user_answer == u.get("correct"):
+if user_answer == u.get("correct"):
 
     u["correct_count"] = u.get("correct_count", 0) + 1
 
-    await message.answer("✅ Правильно!")
+    if u.get("lang") == "kz":
+        await message.answer("✅ Дұрыс!")
     else:
+        await message.answer("✅ Правильно!")
+
+else:
 
     u["wrong_count"] = u.get("wrong_count", 0) + 1
 
-    await message.answer(f"❌ Неправильно! Правильный ответ: {u.get('correct')}")
+    if u.get("lang") == "kz":
+        await message.answer(f"❌ Қате! Дұрыс жауап: {u.get('correct')}")
+    else:
+        await message.answer(f"❌ Неправильно! Правильный ответ: {u.get('correct')}")
     
     else:
         result = f"❌ Неправильно! Правильный ответ: {correct}"
