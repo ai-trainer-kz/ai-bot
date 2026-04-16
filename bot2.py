@@ -12,7 +12,7 @@ from openai import OpenAI
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-ADMIN_ID = 8398266271
+ADMIN_ID 8398266271
 KASPI_NUMBER = "4400430352720152"
 
 DAILY_LIMIT = 3  # попыток в день
