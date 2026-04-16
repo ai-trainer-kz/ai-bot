@@ -201,9 +201,9 @@ def ask_gpt(u, user_text=None, mode="question"):
     )
 
     answer = resp.choices[0].message.content
-# 🔥 очистка мусора
-for s in ["\\(", "\\)", "\\[", "\\]", "**", "√", "frac", "{", "}"]:
-    answer = answer.replace(s, "")
+    # 🔥 очистка мусора
+    for s in ["\\(", "\\)", "\\[", "\\]", "**", "√", "frac", "{", "}"]:
+        answer = answer.replace(s, "")
 
     if user_text:
         u["history"].append({"role": "user", "content": user_text})
