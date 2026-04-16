@@ -12,7 +12,7 @@ from openai import OpenAI
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-ADMIN_ID 8398266271
+ADMIN_ID = 8398266271
 KASPI_NUMBER = "4400430352720152"
 
 DAILY_LIMIT = 3  # попыток в день
@@ -273,13 +273,16 @@ async def pay(msg: types.Message):
     await msg.answer(f"Kaspi: {KASPI_NUMBER}\n7 дней 5000₸\n30 дней 10000₸")
 
 # ========= ADMIN =========
-@dp.message_handler(commands=['add'])
+@dp.message_handler(lambda message: message.text.startswith("/add"))
 async def add_user(message: types.Message):
     if message.from_user.id != ADMIN_ID:
+        await message.answer(f"❌ Ты не админ. Твой ID: {message.from_user.id}")
         return
 
     try:
-        user_id = int(message.get_args())
+        parts = message.text.split()
+        user_id = int(parts[1])
+
         users = load_users()
 
         users[str(user_id)] = {
@@ -291,7 +294,7 @@ async def add_user(message: types.Message):
         await message.answer(f"✅ Доступ выдан: {user_id}")
 
     except:
-        await message.answer("❌ Пример: /add 8398266271")
+        await message.answer("❌ Пример: /add 123456789")
 # ========= RUN =========
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
