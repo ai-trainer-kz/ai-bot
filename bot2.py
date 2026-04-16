@@ -255,7 +255,6 @@ async def start(message: types.Message):
     
         u["welcome_done"] = True
         save_users()
-
     await message.answer("Главное меню", reply_markup=main_kb(message.from_user.id))
 
 # ===== СТАТУС =====
