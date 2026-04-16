@@ -146,6 +146,27 @@ async def to_main(message: types.Message):
     user_state[message.from_user.id] = {}
     await message.answer("🏠 Главное меню", reply_markup=main_kb())
 
+@dp.message_handler(lambda m: m.text == "🔙 Назад")
+async def back(message: types.Message):
+    state = user_state.get(message.from_user.id, {})
+
+    if state.get("step") == "subject":
+        user_state[message.from_user.id] = {"step": "menu"}
+        await message.answer("Меню", reply_markup=main_kb())
+        return
+
+    if state.get("step") == "level":
+        user_state[message.from_user.id] = {"step": "subject"}
+        await message.answer("Выбери предмет", reply_markup=subjects_kb())
+        return
+
+    if state.get("step") == "mode":
+        user_state[message.from_user.id] = {"step": "level"}
+        await message.answer("Выбери уровень", reply_markup=level_kb())
+        return
+
+    await message.answer("Меню", reply_markup=main_kb())
+
 # ========= LANGUAGE =========
 @dp.message_handler(lambda m: m.text in ["🇷🇺 Русский","🇰🇿 Қазақша"])
 async def lang(msg: types.Message):
@@ -185,11 +206,15 @@ def check_limit(uid):
 # ========= FLOW =========
 @dp.message_handler(lambda m: m.text == "📚 Предметы")
 async def subjects(msg: types.Message):
+    user_state[message.from_user.id] = {"step": "subject"}
+    
     await msg.answer("Выбери предмет", reply_markup=subjects_kb())
 
 @dp.message_handler(lambda m: m.text in ["Математика","Физика","Химия","Биология","История"])
 async def mode(msg: types.Message):
     if not has_access(msg.from_user.id):
+        user_state[message.from_user.id] = {"step": "level"}
+        
         await msg.answer("Нет доступа")
         return
 
@@ -207,9 +232,10 @@ async def level(msg: types.Message):
 
 @dp.message_handler(lambda m: m.text in ["Легкий","Средний","Сложный"])
 async def start_test(msg: types.Message):
-    st = user_state[msg.from_user.id]
-    st.update({"level": msg.text, "step": 0, "correct": 0})
-    await send_q(msg)
+    user_state[msg.from_user.id]["subject"] = msg.text
+    user_state[msg.from_user.id]["step"] = "mode"
+    
+    await msg.answer("Режим", reply_markup=mode_kb())
 
 # ========= QUESTION =========
 async def send_q(msg):
