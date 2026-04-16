@@ -132,22 +132,63 @@ def system_prompt(subject, level, lang):
 def ask_gpt(u, user_text=None, mode="question"):
 
     if mode == "question":
-        system = system_prompt(u["subject"], u["level"], u["lang"]) + """
 
-СОЗДАЙ ТЕСТ:
-Вопрос + 4 варианта
-В конце: Правильный ответ: A/B/C/D
-"""
+        if u["lang"] == "kz":
+            system = """
+    Сен ҰБТ мұғалімі.
+
+    ТЕК 1 сұрақ жаса.
+    4 жауап нұсқасы.
+
+    Сұрақ:
+    ...
+    A) ...
+    B) ...
+    C) ...
+    D) ...
+    
+    Дұрыс жауап: X
+    """
+        else:
+            system = """
+    Ты преподаватель ЕНТ.
+    
+    СТРОГО:
+    - 1 вопрос
+    - 4 варианта
+    
+    Вопрос:
+    ...
+    A) ...
+    B) ...
+    C) ...
+    D) ...
+    
+    Правильный ответ: X
+    """
+
     else:
-        system = """
-Ты объясняешь решение.
-
-НЕ ПИШИ:
-- Правильный ответ
-- A B C D
-
-ТОЛЬКО объяснение.
-"""
+    
+        if u["lang"] == "kz":
+            system = """
+    Шешімін түсіндір.
+    
+    ЖАЗБА:
+    - дұрыс жауап
+    - A B C D
+    
+    Тек түсіндіру.
+    """
+        else:
+            system = """
+    Объясни решение.
+    
+    НЕ пиши:
+    - правильный ответ
+    - A B C D
+    
+    Только объяснение.
+    """
 
     messages = [{"role": "system", "content": system}]
     messages += u["history"][-5:]
@@ -183,6 +224,25 @@ async def start(message: types.Message):
         save_users()
 
     await message.answer("Главное меню", reply_markup=main_kb(message.from_user.id))
+
+# ===== ЯЗЫК (ФИКС) =====
+@dp.message_handler(lambda m: m.text == "🌐 Язык")
+async def choose_language(message: types.Message):
+    await message.answer("Выбери язык / Тілді таңдаңыз", reply_markup=lang_kb())
+
+
+@dp.message_handler(lambda m: m.text in ["🇷🇺 Русский", "🇰🇿 Қазақша"])
+async def set_language(message: types.Message):
+    u = users[message.from_user.id]
+
+    if message.text == "🇰🇿 Қазақша":
+        u["lang"] = "kz"
+        await message.answer("🇰🇿 Тіл өзгертілді", reply_markup=main_kb(message.from_user.id))
+    else:
+        u["lang"] = "ru"
+        await message.answer("🇷🇺 Язык изменён", reply_markup=main_kb(message.from_user.id))
+
+    save_users()
 
 # ===== ОБУЧЕНИЕ =====
 @dp.message_handler(lambda m: m.text == "📚 Начать обучение")
