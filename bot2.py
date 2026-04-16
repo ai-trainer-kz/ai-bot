@@ -80,6 +80,14 @@ def answer_kb():
     kb.add("⬅️ Назад")
     return kb
 
+def pay_admin_kb(user_id):
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("⚡ 7 дней", callback_data=f"give7_{user_id}"),
+        InlineKeyboardButton("🚀 30 дней", callback_data=f"give30_{user_id}")
+    )
+    return kb
+
 def lang_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("🇷🇺 Русский", "🇰🇿 Қазақша")
@@ -219,11 +227,65 @@ async def start(message: types.Message):
     u = users[message.from_user.id]
 
     if not u["welcome_done"]:
-        await message.answer("👋 Добро пожаловать в AI ЕНТ Тренер!")
+
+        if u.get("lang") == "kz":
+            await message.answer(
+    """🔥 AI ЕНТ Тренер
+    
+    ЕНТ-ға дайындалуға дайынсың ба? 🎯
+    
+    🤖 Бот сұрақ қояды
+    📚 Қателерді түсіндіреді
+    📈 Әлсіз тұстарыңды күшейтеді
+    
+    Бастау үшін төменнен таңда 👇"""
+            )
+        else:
+            await message.answer(
+    """🔥 AI ЕНТ Тренер
+    
+    Хочешь сдать ЕНТ на высокий балл? 🎯
+    
+    🤖 Бот сам задаёт вопросы
+    📚 Объясняет ошибки как репетитор
+    📈 Прокачивает слабые темы
+    
+    Начни обучение прямо сейчас 👇"""
+            )
+    
         u["welcome_done"] = True
         save_users()
 
     await message.answer("Главное меню", reply_markup=main_kb(message.from_user.id))
+
+# ===== СТАТУС =====
+@dp.message_handler(lambda m: "Статус" in (m.text or ""))
+async def status(message: types.Message):
+    u = users[message.from_user.id]
+
+    correct = u.get("correct_count", 0)
+    wrong = u.get("wrong_count", 0)
+    premium = u.get("premium", False)
+    expires = u.get("expires", "нет")
+
+    if u.get("lang") == "kz":
+        text = f"""📊 Сенің статистикаң
+
+✅ Дұрыс: {correct}
+❌ Қате: {wrong}
+
+💎 Доступ: {"Бар" if premium else "Жоқ"}
+📅 Аяқталады: {expires}"""
+    else:
+        text = f"""📊 Твоя статистика
+
+✅ Правильно: {correct}
+❌ Ошибки: {wrong}
+
+💎 Доступ: {"Есть" if premium else "Нет"}
+📅 До: {expires}"""
+
+    await message.answer(text)
 
 # ===== ЯЗЫК (ФИКС) =====
 @dp.message_handler(lambda m: m.text == "🌐 Язык")
@@ -245,6 +307,64 @@ async def set_language(message: types.Message):
     save_users()
 
 # ===== ОБУЧЕНИЕ =====
+@dp.message_handler(lambda m: "Купить доступ" in (m.text or ""))
+async def buy(message: types.Message):
+    
+        text = f"""💰 Новый платёж!
+    
+    👤 @{message.from_user.username or "нет username"}
+    🆔 ID: {message.from_user.id}
+    📛 Имя: {message.from_user.first_name}
+    """
+
+    await bot.send_message(
+        ADMIN_ID,
+        text,
+        reply_markup=pay_admin_kb(message.from_user.id)
+    )
+
+    await message.answer(
+        f"Kaspi: {KASPI}\n7 дней — {PRICE_7}\n30 дней — {PRICE_30}",
+        reply_markup=pay_kb()
+    )
+
+@dp.callback_query_handler(lambda c: c.data.startswith("give7_"))
+async def give_7(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+
+    user_id = int(callback.data.split("_")[1])
+
+    from datetime import datetime, timedelta
+    expires = datetime.now() + timedelta(days=7)
+
+    users[user_id]["premium"] = True
+    users[user_id]["expires"] = expires.strftime("%Y-%m-%d")
+
+    save_users()
+
+    await callback.message.answer("✅ Выдано 7 дней")
+    await bot.send_message(user_id, "🎉 Вам выдан доступ на 7 дней!")
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith("give30_"))
+async def give_30(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+
+    user_id = int(callback.data.split("_")[1])
+
+    from datetime import datetime, timedelta
+    expires = datetime.now() + timedelta(days=30)
+
+    users[user_id]["premium"] = True
+    users[user_id]["expires"] = expires.strftime("%Y-%m-%d")
+
+    save_users()
+
+    await callback.message.answer("✅ Выдано 30 дней")
+    await bot.send_message(user_id, "🎉 Вам выдан доступ на 30 дней!")
+    
 @dp.message_handler(lambda m: m.text == "📚 Начать обучение")
 async def choose_subject(message: types.Message):
     users[message.from_user.id]["step"] = "subject"
@@ -265,12 +385,17 @@ async def start_ai(message: types.Message):
 
     text = ask_gpt(u)
 
-    match = re.search(r"Правильный ответ[:\s]*([ABCD])", text)
+    # сброс старого ответа
+    u["correct"] = None
+    
+    match = re.search(r"(Правильный ответ|Дұрыс жауап)[:\s]*([ABCD])", text)
     if match:
-        u["correct"] = match.group(1)
-
+        u["correct"] = match.group(2)
+    
+    # удалить правильный ответ из текста
     text = re.sub(r"Правильный ответ.*", "", text)
-
+    text = re.sub(r"Дұрыс жауап.*", "", text)
+    
     await message.answer(text, reply_markup=answer_kb())
 
 # ===== НАЗАД (исправлено) =====
@@ -301,8 +426,17 @@ async def answer_buttons(message: types.Message):
     user_answer = message.text
     correct = u.get("correct")
 
-    if user_answer == correct:
-        result = "✅ Правильно!"
+    if user_answer == u.get("correct"):
+
+    u["correct_count"] = u.get("correct_count", 0) + 1
+
+    await message.answer("✅ Правильно!")
+    else:
+
+    u["wrong_count"] = u.get("wrong_count", 0) + 1
+
+    await message.answer(f"❌ Неправильно! Правильный ответ: {u.get('correct')}")
+    
     else:
         result = f"❌ Неправильно! Правильный ответ: {correct}"
 
