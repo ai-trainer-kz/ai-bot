@@ -9,10 +9,10 @@ from aiogram.utils import executor
 from openai import OpenAI
 
 # ========= CONFIG =========
-BOT_TOKEN = "ТВОЙ_BOT_TOKEN"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 123456789
 KASPI_NUMBER = "8700XXXXXXX"
-OPENAI_API_KEY = "ТВОЙ_OPENAI_API_KEY"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 DAILY_LIMIT = 3  # попыток в день
 
