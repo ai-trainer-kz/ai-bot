@@ -226,35 +226,37 @@ async def start(message: types.Message):
     ensure_user(message.from_user.id)
     u = users[message.from_user.id]
 
-    if not u["welcome_done"]:
+if not u["welcome_done"]:
 
-        if u.get("lang") == "kz":
-            await message.answer(
-    """🔥 AI ЕНТ Тренер
+    if u.get("lang") == "kz":
+        await message.answer(
+            """🔥 AI ЕНТ Тренер
+
+ЕНТ-ға дайындалуға дайынсың ба? 🎯
+
+🤖 Бот сұрақ қояды
+📚 Қателерді түсіндіреді
+📈 Әлсіз тұстарыңды күшейтеді
+
+Бастау үшін төменнен таңда 👇"""
+        )
+    else:
+        await message.answer(
+            """🔥 AI ЕНТ Тренер
+
+Хочешь сдать ЕНТ на высокий балл? 🎯
+
+🤖 Бот сам задаёт вопросы
+📚 Объясняет ошибки как репетитор
+📈 Прокачивает слабые темы
+
+Начни обучение прямо сейчас 👇"""
+        )
+
+    u["welcome_done"] = True
+    save_users()
+
     
-    ЕНТ-ға дайындалуға дайынсың ба? 🎯
-    
-    🤖 Бот сұрақ қояды
-    📚 Қателерді түсіндіреді
-    📈 Әлсіз тұстарыңды күшейтеді
-    
-    Бастау үшін төменнен таңда 👇"""
-            )
-        else:
-            await message.answer(
-    """🔥 AI ЕНТ Тренер
-    
-    Хочешь сдать ЕНТ на высокий балл? 🎯
-    
-    🤖 Бот сам задаёт вопросы
-    📚 Объясняет ошибки как репетитор
-    📈 Прокачивает слабые темы
-    
-    Начни обучение прямо сейчас 👇"""
-            )
-    
-        u["welcome_done"] = True
-        save_users()
     await message.answer("Главное меню", reply_markup=main_kb(message.from_user.id))
 
 # ===== СТАТУС =====
