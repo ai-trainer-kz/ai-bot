@@ -310,13 +310,13 @@ async def set_language(message: types.Message):
 # ===== ОБУЧЕНИЕ =====
 @dp.message_handler(lambda m: "Купить доступ" in (m.text or ""))
 async def buy(message: types.Message):
-    
-        text = f"""💰 Новый платёж!
-    
-    👤 @{message.from_user.username or "нет username"}
-    🆔 ID: {message.from_user.id}
-    📛 Имя: {message.from_user.first_name}
-    """
+
+    text = f"""💰 Новый платёж!
+
+👤 @{message.from_user.username or "нет username"}
+ID: {message.from_user.id}
+Имя: {message.from_user.first_name}
+"""
 
     await bot.send_message(
         ADMIN_ID,
