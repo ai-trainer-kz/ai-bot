@@ -149,13 +149,24 @@ def ask_gpt(u, user_text=None, mode="question"):
     
     Дұрыс жауап: X
     """
-        else:
-            system = """
+    system = f"""
     Ты преподаватель ЕНТ.
     
+    ПРЕДМЕТ: {u["subject"]}
+    
     СТРОГО:
-    - 1 вопрос
-    - 4 варианта
+    - Задавай вопрос ТОЛЬКО по этому предмету
+    - НЕ меняй предмет
+    - НЕ придумывай другие темы
+    
+    Если предмет "Математика" → только задачи
+    Если "История" → только история
+    Если "Биология" → только биология
+    Если "Химия" → только химия
+    
+    ФОРМАТ:
+    1 вопрос
+    4 варианта
     
     Вопрос:
     ...
@@ -165,29 +176,6 @@ def ask_gpt(u, user_text=None, mode="question"):
     D) ...
     
     Правильный ответ: X
-    """
-
-    else:
-    
-        if u["lang"] == "kz":
-            system = """
-    Шешімін түсіндір.
-    
-    ЖАЗБА:
-    - дұрыс жауап
-    - A B C D
-    
-    Тек түсіндіру.
-    """
-        else:
-            system = """
-    Объясни решение.
-    
-    НЕ пиши:
-    - правильный ответ
-    - A B C D
-    
-    Только объяснение.
     """
 
     messages = [{"role": "system", "content": system}]
@@ -253,7 +241,7 @@ async def choose_subject(message: types.Message):
 @dp.message_handler(lambda m: any(x in (m.text or "") for x in ["Математика","История","Биология","Химия"]))
 async def choose_level(message: types.Message):
     u = users[message.from_user.id]
-    u["subject"] = message.text
+    u["subject"] = message.text.replace("📐 ", "").replace("📜 ", "").replace("🧬 ", "").replace("🧪 ", "")
     u["step"] = "level"
     await message.answer("Выбери уровень", reply_markup=level_kb())
 
@@ -265,7 +253,7 @@ async def start_ai(message: types.Message):
 
     text = ask_gpt(u)
 
-    match = re.search(r"([ABCD])", text)
+    match = re.search(r"Правильный ответ[:\s]*([ABCD])", text)
     if match:
         u["correct"] = match.group(1)
 
