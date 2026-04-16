@@ -134,12 +134,15 @@ def ask_gpt(u, user_text=None, mode="question"):
     if mode == "question":
 
         if u["lang"] == "kz":
-            system = """
+            system = f"""
     Сен ҰБТ мұғалімі.
-
-    ТЕК 1 сұрақ жаса.
-    4 жауап нұсқасы.
-
+    
+    ПӘН: {u["subject"]}
+    
+    СТРОГО:
+    - Тек қазақ тілінде жаз
+    - Тек 1 сұрақ
+    
     Сұрақ:
     ...
     A) ...
@@ -149,24 +152,15 @@ def ask_gpt(u, user_text=None, mode="question"):
     
     Дұрыс жауап: X
     """
-    system = f"""
+        else:
+            system = f"""
     Ты преподаватель ЕНТ.
     
     ПРЕДМЕТ: {u["subject"]}
     
     СТРОГО:
-    - Задавай вопрос ТОЛЬКО по этому предмету
-    - НЕ меняй предмет
-    - НЕ придумывай другие темы
-    
-    Если предмет "Математика" → только задачи
-    Если "История" → только история
-    Если "Биология" → только биология
-    Если "Химия" → только химия
-    
-    ФОРМАТ:
-    1 вопрос
-    4 варианта
+    - Пиши только на русском
+    - Только 1 вопрос
     
     Вопрос:
     ...
@@ -176,6 +170,21 @@ def ask_gpt(u, user_text=None, mode="question"):
     D) ...
     
     Правильный ответ: X
+    """
+    
+    else:
+    
+        if u["lang"] == "kz":
+            system = """
+    Шешімін түсіндір.
+    
+    Тек қазақ тілінде жаз.
+    """
+        else:
+            system = """
+    Объясни решение.
+    
+    Пиши только на русском.
     """
 
     messages = [{"role": "system", "content": system}]
@@ -192,6 +201,9 @@ def ask_gpt(u, user_text=None, mode="question"):
     )
 
     answer = resp.choices[0].message.content
+# 🔥 очистка мусора
+for s in ["\\(", "\\)", "\\[", "\\]", "**", "√", "frac", "{", "}"]:
+    answer = answer.replace(s, "")
 
     if user_text:
         u["history"].append({"role": "user", "content": user_text})
