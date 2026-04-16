@@ -70,6 +70,7 @@ def main_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("📚 Предметы", "📊 Статистика")
     kb.add("🏆 Топ", "💳 Оплата")
+    kb.add("🏠 Главное меню")
     return kb
 
 def subjects_kb():
@@ -77,6 +78,7 @@ def subjects_kb():
     kb.add("Математика", "Физика")
     kb.add("Химия", "Биология")
     kb.add("История")
+    kb.add("🔙 Назад", "🏠 Главное меню")
     return kb
 
 def mode_kb():
@@ -138,6 +140,11 @@ async def start(msg: types.Message):
         save_users(users)
 
     await msg.answer("Выбери язык", reply_markup=lang_kb())
+
+@dp.message_handler(lambda m: m.text == "🏠 Главное меню")
+async def to_main(message: types.Message):
+    user_state[message.from_user.id] = {}
+    await message.answer("🏠 Главное меню", reply_markup=main_kb())
 
 # ========= LANGUAGE =========
 @dp.message_handler(lambda m: m.text in ["🇷🇺 Русский","🇰🇿 Қазақша"])
