@@ -10,9 +10,12 @@ from openai import OpenAI
 
 # ========= CONFIG =========
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = 123456789
-KASPI_NUMBER = "8700XXXXXXX"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+ADMIN_ID = 8398266271
+KASPI_NUMBER = "4400430352720152"
+PRICE_7 = "5000 тг"
+PRICE_30 = "10000 тг"
 
 DAILY_LIMIT = 3  # попыток в день
 
