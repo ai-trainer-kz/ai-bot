@@ -14,8 +14,6 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 ADMIN_ID = 8398266271
 KASPI_NUMBER = "4400430352720152"
-PRICE_7 = "5000 тг"
-PRICE_30 = "10000 тг"
 
 DAILY_LIMIT = 3  # попыток в день
 
@@ -125,10 +123,17 @@ async def lang(msg: types.Message):
     await msg.answer("Меню", reply_markup=main_kb())
 
 # ========= ACCESS =========
-def has_access(uid):
-    u = load_users().get(str(uid))
-    return u and u["access_until"] and datetime.now() < datetime.fromisoformat(u["access_until"])
+def has_access(user_id):
+    users = load_users()
 
+    if str(user_id) not in users:
+        return False
+
+    try:
+        access_until = datetime.fromisoformat(users[str(user_id)]["access_until"])
+        return datetime.now() < access_until
+    except:
+        return False
 def check_limit(uid):
     users = load_users()
     user = users[str(uid)]
@@ -268,24 +273,25 @@ async def pay(msg: types.Message):
     await msg.answer(f"Kaspi: {KASPI_NUMBER}\n7 дней 5000₸\n30 дней 10000₸")
 
 # ========= ADMIN =========
-@dp.message_handler(commands=["give"])
-async def give(msg: types.Message):
-    if msg.from_user.id != ADMIN_ID:
+@dp.message_handler(commands=['add'])
+async def add_user(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
         return
 
     try:
-        _, uid, days = msg.text.split()
+        user_id = int(message.get_args())
         users = load_users()
 
-        users[uid]["access_until"] = (
-            datetime.now() + timedelta(days=int(days))
-        ).isoformat()
+        users[str(user_id)] = {
+            "access_until": (datetime.now() + timedelta(days=7)).isoformat()
+        }
 
         save_users(users)
-        await msg.answer("OK")
-    except:
-        await msg.answer("Ошибка")
 
+        await message.answer(f"✅ Доступ выдан: {user_id}")
+
+    except:
+        await message.answer("❌ Пример: /add 8398266271")
 # ========= RUN =========
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
