@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import re
 
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup
 from aiogram.utils import executor
 from openai import OpenAI
 
@@ -15,8 +15,6 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ADMIN_ID = 8398266271
 
 FREE_MESSAGES = 10
-PRICE_7 = "5000 тг"
-PRICE_30 = "10000 тг"
 KASPI = "4400430352720152"
 
 MODEL = "gpt-4o-mini"
@@ -29,25 +27,16 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 users = {}
 
-# ===== 💾 СОХРАНЕНИЕ =====
+# ===== SAVE / LOAD =====
 def save_users():
-    data = {}
-    for uid, u in users.items():
-        data[uid] = u.copy()
-        if u["premium_until"]:
-            data[uid]["premium_until"] = u["premium_until"].isoformat()
     with open("users.json", "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+        json.dump(users, f, ensure_ascii=False, indent=2)
 
 def load_users():
     global users
     try:
         with open("users.json", "r", encoding="utf-8") as f:
-            data = json.load(f)
-            users = data
-            for uid in users:
-                if users[uid]["premium_until"]:
-                    users[uid]["premium_until"] = datetime.fromisoformat(users[uid]["premium_until"])
+            users = json.load(f)
     except:
         users = {}
 
@@ -88,208 +77,159 @@ def lang_kb():
 
 def pay_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("💰 Оплатил")
+    kb.add("7 дней - 5000 тг")
+    kb.add("30 дней - 10000 тг")
     kb.add("⬅️ Назад")
     return kb
 
 def admin_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("📋 Пользователи")
+    kb.add("🎁 Выдать 7 дней")
+    kb.add("🎁 Выдать 30 дней")
     kb.add("⬅️ Назад")
     return kb
 
-# ===== УТИЛИТЫ =====
-def ensure_user(user_id):
-    if user_id not in users:
-        users[user_id] = {
-            "step": "idle",
+# ===== USER =====
+def ensure_user(uid):
+    if uid not in users:
+        users[uid] = {
             "subject": None,
             "level": "Средний",
             "lang": "ru",
-            "messages_used": 0,
-            "premium_until": None,
             "history": [],
             "correct": None,
-            "wrong": 0,
-            "paid": False,
-            "created_at": datetime.now().isoformat(),
-            "welcome_done": False  # ✅ ДОБАВИЛ
+            "total": 0,
+            "correct_answers": 0,
+            "premium_until": None
         }
-        save_users()
-
-def has_access(u):
-    return u["premium_until"] and datetime.now() < u["premium_until"]
-
-def can_use(u):
-    return has_access(u) or u["messages_used"] < FREE_MESSAGES
 
 # ===== GPT =====
-def system_prompt(subject, level, lang):
-    if lang == "kz":
-        return f"""Сен ҰБТ мұғалімі ({subject})."""
-    return f"""Ты преподаватель ЕНТ ({subject})."""
-
-# 🔥 ГЛАВНОЕ ИСПРАВЛЕНИЕ
-def ask_gpt(u, user_text=None, mode="question"):
+def ask_gpt(u, mode="question", user_text=None):
 
     if mode == "question":
-        system = system_prompt(u["subject"], u["level"], u["lang"]) + """
-
-СОЗДАЙ ТОЛЬКО ТЕСТ:
-
-Вопрос:
-...
-A) ...
-B) ...
-C) ...
-D) ...
-
-Правильный ответ:
-A / B / C / D
-"""
+        system = "Сгенерируй ОДИН тест:\nВопрос\nA\nB\nC\nD\nПравильный ответ: X"
     else:
-        system = """
-Ты объясняешь решение.
-
-ЗАПРЕЩЕНО:
-- писать "Правильный ответ"
-- писать A/B/C/D
-
-ТОЛЬКО объяснение.
-"""
+        system = "Объясни решение кратко"
 
     messages = [{"role": "system", "content": system}]
-    messages += u["history"][-10:]
 
     if user_text:
         messages.append({"role": "user", "content": user_text})
-    else:
-        messages.append({"role": "user", "content": "Начни тест"})
 
     resp = client.chat.completions.create(
         model=MODEL,
         messages=messages,
     )
 
-    answer = resp.choices[0].message.content
+    text = resp.choices[0].message.content
+    return text
 
-    for s in ["\\(", "\\)", "\\[", "\\]", "**"]:
-        answer = answer.replace(s, "")
-
-    if user_text:
-        u["history"].append({"role": "user", "content": user_text})
-    u["history"].append({"role": "assistant", "content": answer})
-
-    save_users()
-    return answer
-
-# ===== СТАРТ =====
+# ===== START =====
 @dp.message_handler(commands=['start'])
 async def start(message: types.Message):
-    ensure_user(message.from_user.id)
-    u = users[message.from_user.id]
-
-    # ✅ приветствие 1 раз
-    if not u.get("welcome_done"):
-        await message.answer(
-            "👋 Добро пожаловать в AI ЕНТ Тренер!\n\n"
-            "📚 Выбирай предмет\n"
-            "🧠 Решай тесты\n"
-            "🚀 Готовься к ЕНТ"
-        )
-        u["welcome_done"] = True
-        save_users()
+    uid = str(message.from_user.id)
+    ensure_user(uid)
 
     await message.answer("🤖 AI ЕНТ Тренер", reply_markup=main_kb(message.from_user.id))
 
+# ===== ЯЗЫК =====
+@dp.message_handler(lambda m: m.text == "🌐 Язык")
+async def lang(message: types.Message):
+    await message.answer("Выбери язык", reply_markup=lang_kb())
+
+@dp.message_handler(lambda m: m.text in ["🇷🇺 Русский","🇰🇿 Қазақша"])
+async def set_lang(message: types.Message):
+    uid = str(message.from_user.id)
+    users[uid]["lang"] = "kz" if "🇰🇿" in message.text else "ru"
+    await message.answer("Сохранено", reply_markup=main_kb(message.from_user.id))
+
 # ===== ОБУЧЕНИЕ =====
 @dp.message_handler(lambda m: m.text == "📚 Начать обучение")
-async def choose_subject(message: types.Message):
-    ensure_user(message.from_user.id)
-    users[message.from_user.id]["step"] = "subject"
-    save_users()
+async def learn(message: types.Message):
     await message.answer("Выбери предмет", reply_markup=subject_kb())
 
-@dp.message_handler(lambda m: any(x in (m.text or "") for x in ["Математика","История","Биология","Химия"]))
-async def choose_level(message: types.Message):
-    u = users[message.from_user.id]
-    u["subject"] = message.text
-    u["step"] = "level"
-    save_users()
+@dp.message_handler(lambda m: any(x in m.text for x in ["Математика","История","Биология","Химия"]))
+async def subject(message: types.Message):
+    uid = str(message.from_user.id)
+    users[uid]["subject"] = message.text
     await message.answer("Выбери уровень", reply_markup=level_kb())
 
-@dp.message_handler(lambda m: any(x in (m.text or "") for x in ["База","Средний","Сложный"]))
-async def start_ai(message: types.Message):
-    u = users[message.from_user.id]
-    u["level"] = message.text
-    u["step"] = "ai"
-    u["history"] = []
-    save_users()
+@dp.message_handler(lambda m: any(x in m.text for x in ["База","Средний","Сложный"]))
+async def level(message: types.Message):
+    uid = str(message.from_user.id)
+    u = users[uid]
 
-    if not can_use(u):
-        await message.answer(f"❌ Лимит\nKaspi: {KASPI}", reply_markup=pay_kb())
-        return
+    u["total"] = 0
+    u["correct_answers"] = 0
 
-    text = ask_gpt(u, mode="question")
+    text = ask_gpt(u)
 
-    match = re.search(r"Правильный ответ[:\s]*([ABCD])", text)
-    if match:
-        u["correct"] = match.group(1)
+    m = re.search(r"([ABCD])", text)
+    if m:
+        u["correct"] = m.group(1)
 
-    text = re.sub(r"Правильный ответ[:\s]*[ABCD]", "", text)
+    text = re.sub(r"Правильный ответ.*", "", text)
 
-    await message.answer(text, reply_markup=answer_kb())
+    await message.answer(f"Вопрос 1/10\n{text}", reply_markup=answer_kb())
 
-# ===== НАЗАД =====
-@dp.message_handler(lambda m: "Назад" in m.text)
-async def go_back(message: types.Message):
-    u = users[message.from_user.id]
+# ===== ОТВЕТ =====
+@dp.message_handler(lambda m: m.text in ["A","B","C","D"])
+async def answer(message: types.Message):
+    uid = str(message.from_user.id)
+    u = users[uid]
 
-    u["step"] = "subject"
-    save_users()
+    u["total"] += 1
 
-    await message.answer("⬅️ Назад\n\nВыбери предмет:", reply_markup=subject_kb())
-
-# ===== ОТВЕТЫ =====
-@dp.message_handler(lambda m: m.text in ["A", "B", "C", "D"])
-async def answer_buttons(message: types.Message):
-    u = users[message.from_user.id]
-
-    if u["step"] != "ai":
-        return
-
-    user_answer = message.text
-    correct = u.get("correct")
-
-    if not correct:
-        await message.answer("Ошибка. Попробуй ещё раз.")
-        return
-
-    if user_answer == correct:
-        result = "✅ Правильно!"
+    if message.text == u["correct"]:
+        u["correct_answers"] += 1
+        res = "✅ Правильно"
     else:
-        result = f"❌ Неправильно! Правильный ответ: {correct}"
+        res = f"❌ Неправильно. Ответ: {u['correct']}"
 
-    # 🔥 исправлено объяснение
-    explain = ask_gpt(
-        u,
-        f"Объясни решение. Пользователь ответил {user_answer}",
-        mode="explain"
-    )
+    explain = ask_gpt(u, "explain", "Объясни")
 
-    await message.answer(result + "\n\n" + explain)
+    await message.answer(res + "\n\n" + explain)
 
-    text = ask_gpt(u, mode="question")
+    # ===== ФИНАЛ =====
+    if u["total"] >= 10:
+        percent = int(u["correct_answers"]*10)
 
-    match = re.search(r"Правильный ответ[:\s]*([ABCD])", text)
-    if match:
-        u["correct"] = match.group(1)
+        await message.answer(
+            f"📊 Результат:\n\n{u['correct_answers']}/10\n{percent}%\n\n💰 Купить доступ",
+            reply_markup=main_kb(message.from_user.id)
+        )
+        return
 
-    text = re.sub(r"Правильный ответ[:\s]*[ABCD]", "", text)
+    text = ask_gpt(u)
 
-    await message.answer(text, reply_markup=answer_kb())
+    m = re.search(r"([ABCD])", text)
+    if m:
+        u["correct"] = m.group(1)
 
-# ===== ЗАПУСК =====
+    text = re.sub(r"Правильный ответ.*", "", text)
+
+    await message.answer(f"Вопрос {u['total']+1}/10\n{text}", reply_markup=answer_kb())
+
+# ===== ОПЛАТА =====
+@dp.message_handler(lambda m: m.text == "💰 Купить доступ")
+async def pay(message: types.Message):
+    await message.answer(f"Kaspi: {KASPI}", reply_markup=pay_kb())
+
+# ===== АДМИН =====
+@dp.message_handler(lambda m: m.text == "👑 Админ")
+async def admin(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    await message.answer("Админ панель", reply_markup=admin_kb())
+
+@dp.message_handler(lambda m: m.text == "📋 Пользователи")
+async def users_list(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    await message.answer(f"Всего: {len(users)}")
+
+# ===== RUN =====
 if __name__ == "__main__":
     load_users()
     executor.start_polling(dp, skip_updates=True)
