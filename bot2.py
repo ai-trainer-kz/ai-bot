@@ -84,11 +84,13 @@ def subjects_kb():
 def mode_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("📘 5 вопросов", "🧠 20 вопросов")
+    kb.add("🔙 Назад", "🏠 Главное меню")
     return kb
 
 def level_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("Легкий", "Средний", "Сложный")
+    kb.add("🔙 Назад", "🏠 Главное меню")
     return kb
 
 # ========= STATE =========
@@ -161,11 +163,14 @@ async def back(message: types.Message):
         return
 
     if state.get("step") == "mode":
-        user_state[message.from_user.id] = {"step": "level"}
-        await message.answer("Выбери уровень", reply_markup=level_kb())
-        return
+    user_state[message.from_user.id] = {"step": "subject"}
+    await message.answer("Выбери предмет", reply_markup=subjects_kb())
+    return
 
-    await message.answer("Меню", reply_markup=main_kb())
+if state.get("step") == "level":
+    user_state[message.from_user.id] = {"step": "mode"}
+    await message.answer("Режим", reply_markup=mode_kb())
+    return
 
 # ========= LANGUAGE =========
 @dp.message_handler(lambda m: m.text in ["🇷🇺 Русский","🇰🇿 Қазақша"])
@@ -234,7 +239,7 @@ async def start_test(msg: types.Message):
     user_state[msg.from_user.id]["level"] = msg.text
     user_state[msg.from_user.id]["step"] = "test"
     
-    await msg.answer("Режим", reply_markup=mode_kb())
+    await send_q(msg) .answer("Режим", reply_markup=mode_kb())
 
 # ========= QUESTION =========
 async def send_q(msg):
@@ -254,7 +259,7 @@ async def send_q(msg):
     await msg.answer(q["question"], reply_markup=kb)
 
 # ========= ANSWER =========
-@dp.message_handler()
+@dp.message_handler(lambda m: m.text in ["A","B","C","D"])
 async def answer(msg: types.Message):
     if msg.from_user.id not in user_state:
         return
@@ -292,7 +297,7 @@ async def answer(msg: types.Message):
 # ========= STATS =========
 @dp.message_handler(lambda m: m.text == "📊 Статистика")
 async def stats(msg: types.Message):
-    u = load_users().get(str(msg.from_user.id))
+    user_state[msg.from_user.id] = {"step": "subject"}
     if not u or u["total"] == 0:
         await msg.answer("Нет данных")
         return
@@ -328,29 +333,6 @@ async def top(msg: types.Message):
 async def pay(msg: types.Message):
     await msg.answer(f"Kaspi: {KASPI_NUMBER}\n7 дней 5000₸\n30 дней 10000₸")
 
-# ========= ADMIN =========
-@dp.message_handler(lambda message: message.text.startswith("/add"))
-async def add_user(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        await message.answer(f"❌ Ты не админ. Твой ID: {message.from_user.id}")
-        return
-
-    try:
-        parts = message.text.split()
-        user_id = int(parts[1])
-
-        users = load_users()
-
-        users[str(user_id)] = {
-            "access_until": (datetime.now() + timedelta(days=7)).isoformat()
-        }
-
-        save_users(users)
-
-        await message.answer(f"✅ Доступ выдан: {user_id}")
-
-    except:
-        await message.answer("❌ Пример: /add 123456789")
 # ========= RUN =========
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
