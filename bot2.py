@@ -21,6 +21,10 @@ bot = Bot(token=BOT_TOKEN)
 # client = OpenAI(api_key=OPENAI_API_KEY)
 dp = Dispatcher(bot)
 
+@dp.message_handler(commands=['start'])
+async def start_cmd(message: types.Message):
+    await message.answer("👋 Добро пожаловать!", reply_markup=main_kb())
+
 @dp.message_handler(lambda m: m.text == "💳 Оплата")
 async def pay(msg: types.Message):
 
@@ -395,7 +399,6 @@ async def paid(msg: types.Message):
 async def admin_access(message: types.Message):
 
     if not is_admin(message.from_user.id):
-        await message.answer("❌ Ты не админ")
         return
 
     if message.text == "❌ Отмена":
@@ -406,7 +409,6 @@ async def admin_access(message: types.Message):
         await message.answer("🏠 Главное меню", reply_markup=main_kb())
         return
 
-    # --- выдача доступа ---
     reply = message.reply_to_message
     if not reply:
         await message.answer("❗ Ответь на сообщение с платежом")
