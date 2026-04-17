@@ -126,7 +126,17 @@ async def explain(q, a, lang):
 # ========= START =========
 @dp.message_handler(commands=["start"])
 async def start(msg: types.Message):
-    users = load_users()
+    
+@dp.message_handler(lambda m: m.text in ["🇷🇺 Русский","🇰🇿 Қазақша"])
+async def lang(msg: types.Message):
+    lang = "русский" if "Русский" in msg.text else "казахский"
+
+    if msg.from_user.id not in user_state:
+        user_state[msg.from_user.id] = {}
+
+    user_state[msg.from_user.id]["lang"] = lang
+
+    await msg.answer("Меню", reply_markup=main_kb())
     uid = str(msg.from_user.id)
 
     if uid not in users:
@@ -200,8 +210,11 @@ def check_limit(uid):
 # ========= FLOW =========
 @dp.message_handler(lambda m: m.text == "📚 Предметы")
 async def subjects(msg: types.Message):
-    user_state[message.from_user.id] = {"step": "subject"}
-    
+    if msg.from_user.id not in user_state:
+    user_state[msg.from_user.id] = {}
+
+    user_state[msg.from_user.id]["subject"] = msg.text
+
     await msg.answer("Выбери предмет", reply_markup=subjects_kb())
 
 @dp.message_handler(lambda m: m.text in ["Математика","Физика","Химия","Биология","История"])
@@ -221,6 +234,7 @@ async def mode(msg: types.Message):
 @dp.message_handler(lambda m: "вопрос" in m.text)
 async def level(msg: types.Message):
     user_state[msg.from_user.id]["count"] = 5 if "5" in msg.text else 20
+    user_state[msg.from_user.id]["step"] = "level"
     await msg.answer("Сложность", reply_markup=level_kb())
 
 @dp.message_handler(lambda m: m.text in ["Легкий","Средний","Сложный"])
@@ -228,7 +242,7 @@ async def start_test(msg: types.Message):
     user_state[msg.from_user.id]["level"] = msg.text
     user_state[msg.from_user.id]["step"] = "test"
     
-    await send_q(msg) .answer("Режим", reply_markup=mode_kb())
+    await send_q(msg)
 
 # ========= QUESTION =========
 async def send_q(msg):
@@ -263,6 +277,7 @@ async def answer(msg: types.Message):
     q = st["q"]
 
     if msg.text == q["answer"]:
+        st.setdefault("correct", 0)
         st["correct"] += 1
     else:
         topic = q.get("topic","общая")
@@ -286,7 +301,8 @@ async def answer(msg: types.Message):
 # ========= STATS =========
 @dp.message_handler(lambda m: m.text == "📊 Статистика")
 async def stats(msg: types.Message):
-    user_state[msg.from_user.id] = {"step": "subject"}
+    u = load_users().get(str(msg.from_user.id))
+
     if not u or u["total"] == 0:
         await msg.answer("Нет данных")
         return
