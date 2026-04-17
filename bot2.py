@@ -432,7 +432,8 @@ async def admin_access(message: types.Message):
     await message.answer(f"✅ Выдал доступ: {days} дней")
 
     await message.answer("🏠 Главное меню", reply_markup=main_kb())
-    # ========= RUN =========
-    if __name__ == "__main__":
-        executor.start_polling(dp, skip_updates=True)
+    
+# ========= RUN =========
+if __name__ == "__main__":
+executor.start_polling(dp, skip_updates=True)
 
