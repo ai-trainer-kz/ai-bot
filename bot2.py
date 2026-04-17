@@ -168,9 +168,9 @@ if state.get("step") == "subject":
         return
 
 if state.get("step") == "level":
-    user_state[message.from_user.id] = {"step": "mode"}
-    await message.answer("Режим", reply_markup=mode_kb())
-    return
+        user_state[message.from_user.id] = {"step": "mode"}
+        await message.answer("Режим", reply_markup=mode_kb())
+        return
 
 # ========= LANGUAGE =========
 @dp.message_handler(lambda m: m.text in ["🇷🇺 Русский","🇰🇿 Қазақша"])
