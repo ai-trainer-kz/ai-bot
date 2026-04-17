@@ -27,11 +27,12 @@ async def pay(msg: types.Message):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("7 дней", "30 дней")
     kb.add("❌ Отмена")
-    kb.add("⬅️ Назад")    
+    kb.add("⬅️ Назад")
 
     await msg.answer(
         "Kaspi: 4400430352720152\n7 дней — 5000 тг\n30 дней — 10000 тг",
         reply_markup=kb
+    )
 
  @dp.message_handler(lambda m: m.text in ["7 дней", "30 дней"])
 async def choose_tariff(msg: types.Message):
