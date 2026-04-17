@@ -213,8 +213,6 @@ async def subjects(msg: types.Message):
 @dp.message_handler(lambda m: m.text in ["Математика","Физика","Химия","Биология","История"])
 async def mode(msg: types.Message):
     if not has_access(msg.from_user.id):
-        user_state[message.from_user.id] = {"step": "level"}
-        
         await msg.answer("Нет доступа")
         return
 
@@ -223,6 +221,7 @@ async def mode(msg: types.Message):
         return
 
     user_state[msg.from_user.id]["subject"] = msg.text
+    user_state[msg.from_user.id]["step"] = "mode"
     await msg.answer("Режим", reply_markup=mode_kb())
 
 @dp.message_handler(lambda m: "вопрос" in m.text)
@@ -232,8 +231,8 @@ async def level(msg: types.Message):
 
 @dp.message_handler(lambda m: m.text in ["Легкий","Средний","Сложный"])
 async def start_test(msg: types.Message):
-    user_state[msg.from_user.id]["subject"] = msg.text
-    user_state[msg.from_user.id]["step"] = "mode"
+    user_state[msg.from_user.id]["level"] = msg.text
+    user_state[msg.from_user.id]["step"] = "test"
     
     await msg.answer("Режим", reply_markup=mode_kb())
 
