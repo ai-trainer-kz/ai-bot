@@ -16,7 +16,6 @@ ADMIN_ID = 8398266271
 
 def is_admin(user_id):
     return user_id in ADMINS
-
 @dp.message_handler(lambda m: m.text == "💳 Оплата")
 async def pay(msg: types.Message):
 
@@ -351,8 +350,9 @@ async def top(msg: types.Message):
         text += f"{i}. {n} — {p}%\n"
 
     await msg.answer(text)
-
+    
 # ========= PAYMENT =========
+
 @dp.message_handler(lambda m: m.text == "💳 Оплата")
 async def pay(msg: types.Message):
     await msg.answer(f"Kaspi: {KASPI_NUMBER}\n7 дней 5000₸\n30 дней 10000₸")
