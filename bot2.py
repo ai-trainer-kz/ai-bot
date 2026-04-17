@@ -35,7 +35,7 @@ async def pay(msg: types.Message):
     )
 
  @dp.message_handler(lambda m: m.text in ["7 дней", "30 дней"])
-async def choose_tariff(msg: types.Message):
+ async def choose_tariff(msg: types.Message):
 
     user_state.setdefault(msg.from_user.id, {})
     user_state[msg.from_user.id]["tariff"] = msg.text
