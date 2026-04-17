@@ -127,6 +127,9 @@ async def explain(q, a, lang):
 # ========= START =========
 @dp.message_handler(commands=['start'])
 async def start(msg: types.Message):
+
+    user_state[msg.from_user.id] = {}
+
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("Русский", "Қазақша")
 
