@@ -124,10 +124,15 @@ async def explain(q, a, lang):
     return r.choices[0].message.content
 
 # ========= START =========
-@dp.message_handler(commands=["start"])
+@dp.message_handler(commands=['start'])
 async def start(msg: types.Message):
-    
-@dp.message_handler(lambda m: m.text in ["🇷🇺 Русский","🇰🇿 Қазақша"])
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("Русский", "Қазақша")
+
+    await msg.answer("Выбери язык / Тілді таңда", reply_markup=kb)
+
+# ===== LANGUAGE =====
+@dp.message_handler(lambda m: m.text and ("Русский" in m.text or "Қазақша" in m.text))
 async def lang(msg: types.Message):
     lang = "русский" if "Русский" in msg.text else "казахский"
 
@@ -135,8 +140,11 @@ async def lang(msg: types.Message):
         user_state[msg.from_user.id] = {}
 
     user_state[msg.from_user.id]["lang"] = lang
+    user_state[msg.from_user.id]["step"] = "menu"
 
     await msg.answer("Меню", reply_markup=main_kb())
+
+    users = load_users()
     uid = str(msg.from_user.id)
 
     if uid not in users:
@@ -146,13 +154,11 @@ async def lang(msg: types.Message):
             "correct": 0,
             "total": 0,
             "weak": {},
-            "attempts": 0,
-            "last_date": ""
+            "attempts": 0
         }
-        save_users(users)
 
-    await msg.answer("Выбери язык", reply_markup=lang_kb())
-
+    save_users(users)
+    
 @dp.message_handler(lambda m: m.text == "🏠 Главное меню")
 async def to_main(message: types.Message):
     user_state[message.from_user.id] = {}
