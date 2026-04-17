@@ -377,8 +377,12 @@ async def admin_access(message: types.Message):
     text = message.text
 
     # 👉 берём последнее сообщение (где был платеж)
-    last_msg = message.reply_to_message or message
+    last_msg = message.reply_to_message
 
+    if not last_msg:
+    await message.answer("❗ Ответь на сообщение с платежом")
+    return
+    
     try:
         user_id = int(re.search(r"ID: (\d+)", last_msg.text).group(1))
     except:
