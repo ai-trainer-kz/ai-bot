@@ -152,14 +152,9 @@ async def to_main(message: types.Message):
 async def back(message: types.Message):
     state = user_state.get(message.from_user.id, {})
 
-if state.get("step") == "subject":
+    if state.get("step") == "subject":
         user_state[message.from_user.id] = {"step": "menu"}
         await message.answer("Меню", reply_markup=main_kb())
-        return
-
-    if state.get("step") == "level":
-        user_state[message.from_user.id] = {"step": "subject"}
-        await message.answer("Выбери предмет", reply_markup=subjects_kb())
         return
 
     if state.get("step") == "mode":
@@ -167,18 +162,12 @@ if state.get("step") == "subject":
         await message.answer("Выбери предмет", reply_markup=subjects_kb())
         return
 
-if state.get("step") == "level":
+    if state.get("step") == "level":
         user_state[message.from_user.id] = {"step": "mode"}
         await message.answer("Режим", reply_markup=mode_kb())
         return
 
-# ========= LANGUAGE =========
-@dp.message_handler(lambda m: m.text in ["🇷🇺 Русский","🇰🇿 Қазақша"])
-async def lang(msg: types.Message):
-    lang = "русский" if "Русский" in msg.text else "казахский"
-    user_state[msg.from_user.id] = {"lang": lang}
-    await msg.answer("Меню", reply_markup=main_kb())
-
+    await message.answer("Меню", reply_markup=main_kb())
 # ========= ACCESS =========
 def has_access(user_id):
     users = load_users()
