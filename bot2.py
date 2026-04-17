@@ -362,34 +362,37 @@ async def paid(msg: types.Message):
 
     await msg.answer("✅ Заявка отправлена. Ожидайте подтверждения")
 
-@dp.message_handler(lambda m: m.text in ["7 дней", "30 дней"])
-async def choose_tariff(msg: types.Message):
+@dp.message_handler(lambda m: m.text in ["7 дней", "30 дней", "❌ Отказать"])
+async def admin_access(message: types.Message):
 
-    if is_admin(msg.from_user.id):
-        return
-
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("✅ Я оплатил")
-    kb.add("⬅️ Назад")
-
-    await msg.answer("💳 После оплаты нажмите кнопку ниже", reply_markup=kb)
-    
-    if message.text == "⬅️ Назад":
-        await message.answer("🏠 Главное меню", reply_markup=main_kb())
-        return
-
-    reply = message.reply_to_message
-    if not reply:
-        await message.answer("❗ Ответь на сообщение с платежом")
+    if not is_admin(message.from_user.id):
         return
 
     import re
-    user_id = int(re.search(r"ID: (\d+)", reply.text).group(1))
+
+    text = message.text
+
+    # 👉 берём последнее сообщение (где был платеж)
+    last_msg = message.reply_to_message or message
+
+    try:
+        user_id = int(re.search(r"ID: (\d+)", last_msg.text).group(1))
+    except:
+        await message.answer("❗ Не удалось найти ID")
+        return
 
     users = load_users()
 
+    # ❌ отказ
+    if "Отказать" in text:
+        await bot.send_message(user_id, "❌ Платеж отклонён")
+        await message.answer("❌ Отказано")
+        return
+
+    # ✅ выдача доступа
     from datetime import datetime, timedelta
-    days = 7 if "7" in message.text else 30
+
+    days = 7 if "7" in text else 30
     until = datetime.now() + timedelta(days=days)
 
     uid = str(user_id)
