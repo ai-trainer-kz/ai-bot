@@ -13,8 +13,21 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 ADMIN_ID = 8398266271
-KASPI_NUMBER = "4400430352720152"
 
+def is_admin(user_id):
+    return user_id in ADMINS
+
+@dp.message_handler(lambda m: m.text == "💳 Оплата")
+async def pay(msg: types.Message):
+
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("✅ Я оплатил")
+    kb.add("🏠 Главное меню")
+
+    await msg.answer(
+        "Kaspi: 4400430352720152\n7 дней — 5000 тг\n30 дней — 10000 тг",
+        reply_markup=kb
+    )
 DAILY_LIMIT = 3  # попыток в день
 
 logging.basicConfig(level=logging.INFO)
@@ -27,7 +40,7 @@ dp = Dispatcher(bot)
 async def add_user(message: types.Message):
     print("ADD COMMAND RECEIVED")  # для логов
 
-    if message.from_user.id != ADMIN_ID:
+    if not is_admin(message.from_user.id):
         await message.answer(f"❌ Ты не админ. Твой ID: {message.from_user.id}")
         return
 
@@ -344,6 +357,63 @@ async def top(msg: types.Message):
 async def pay(msg: types.Message):
     await msg.answer(f"Kaspi: {KASPI_NUMBER}\n7 дней 5000₸\n30 дней 10000₸")
 
+@dp.message_handler(lambda m: m.text == "✅ Я оплатил")
+async def paid(msg: types.Message):
+    user = msg.from_user
+
+    text = f"""
+💰 НОВЫЙ ПЛАТЕЖ
+
+👤 Имя: {user.full_name}
+🆔 ID: {user.id}
+📨 @{user.username}
+"""
+
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("7 дней", "🚀 30 дней")
+    kb.add("❌ Отказать")
+
+    for admin in ADMINS:
+        await bot.send_message(admin, text, reply_markup=kb)
+
+    await msg.answer("✅ Заявка отправлена. Ожидайте подтверждения")
+
+@dp.message_handler(lambda m: m.text in ["7 дней", "🚀 30 дней", "❌ Отказать"])
+async def admin_access(msg: types.Message):
+    if not is_admin(msg.from_user.id):
+        return
+
+    reply = msg.reply_to_message
+    if not reply:
+        await msg.answer("❗ Ответь на сообщение с платежом")
+        return
+
+    import re
+    user_id = int(re.search(r"ID: (\d+)", reply.text).group(1))
+
+    users = load_users()
+
+    if msg.text == "❌ Отказать":
+        await bot.send_message(user_id, "❌ Оплата отклонена")
+        return
+
+    from datetime import datetime, timedelta
+
+    days = 7 if "7" in msg.text else 30
+    until = datetime.now() + timedelta(days=days)
+
+    uid = str(user_id)
+    if uid not in users:
+        users[uid] = {}
+
+    users[uid]["access_until"] = until.isoformat()
+
+    save_users(users)
+
+    await bot.send_message(user_id, f"✅ Доступ выдан на {days} дней")
+    await msg.answer(f"✅ Выдал доступ: {days} дней")
+
 # ========= RUN =========
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
+
