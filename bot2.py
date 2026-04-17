@@ -391,31 +391,25 @@ async def paid(msg: types.Message):
 
     await msg.answer("✅ Заявка отправлена. Ожидайте подтверждения")
 
-@dp.message_handler(lambda m: m.text in ["7 дней", "🚀 30 дней", "❌ Отказать"])
-async def admin_access(msg: types.Message):
+@dp.message_handler(lambda m: m.text in ["7 дней", "30 дней", "❌ Отмена", "⬅️ Назад"])
+async def admin_access(message: types.Message):
 
-    if msg.text == "❌ Отмена":
-        await msg.answer("❌ Действие отменено", reply_markup=main_kb())
-        return
-    
-    if msg.text == "⬅️ Назад":
-        await msg.answer("🏠 Главное меню", reply_markup=main_kb())
+    if not is_admin(message.from_user.id):
+        await message.answer("❌ Ты не админ")
         return
 
-    if msg.text == "❌ Отмена":
-        await msg.answer("❌ Действие отменено", reply_markup=main_kb())
+    if message.text == "❌ Отмена":
+        await message.answer("❌ Действие отменено", reply_markup=main_kb())
         return
-    
-    if msg.text == "⬅️ Назад":
-        await msg.answer("🏠 Главное меню", reply_markup=main_kb())
-        return
-        
-        if not is_admin(msg.from_user.id):
-            return
 
-    reply = msg.reply_to_message
+    if message.text == "⬅️ Назад":
+        await message.answer("🏠 Главное меню", reply_markup=main_kb())
+        return
+
+    # --- выдача доступа ---
+    reply = message.reply_to_message
     if not reply:
-        await msg.answer("❗ Ответь на сообщение с платежом")
+        await message.answer("❗ Ответь на сообщение с платежом")
         return
 
     import re
@@ -423,13 +417,8 @@ async def admin_access(msg: types.Message):
 
     users = load_users()
 
-    if msg.text == "❌ Отказать":
-        await bot.send_message(user_id, "❌ Оплата отклонена")
-        return
-
     from datetime import datetime, timedelta
-
-    days = 7 if "7" in msg.text else 30
+    days = 7 if "7" in message.text else 30
     until = datetime.now() + timedelta(days=days)
 
     uid = str(user_id)
@@ -437,15 +426,13 @@ async def admin_access(msg: types.Message):
         users[uid] = {}
 
     users[uid]["access_until"] = until.isoformat()
-
     save_users(users)
 
     await bot.send_message(user_id, f"✅ Доступ выдан на {days} дней")
-    await msg.answer(f"✅ Выдал доступ: {days} дней")
+    await message.answer(f"✅ Выдал доступ: {days} дней")
 
-    await msg.answer("🏠 Главное меню", reply_markup=main_kb())
-
-# ========= RUN =========
-if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
+    await message.answer("🏠 Главное меню", reply_markup=main_kb())
+    # ========= RUN =========
+    if __name__ == "__main__":
+        executor.start_polling(dp, skip_updates=True)
 
