@@ -32,6 +32,18 @@ async def pay(msg: types.Message):
     await msg.answer(
         "Kaspi: 4400430352720152\n7 дней — 5000 тг\n30 дней — 10000 тг",
         reply_markup=kb
+
+ @dp.message_handler(lambda m: m.text in ["7 дней", "30 дней"])
+async def choose_tariff(msg: types.Message):
+
+    user_state.setdefault(msg.from_user.id, {})
+    user_state[msg.from_user.id]["tariff"] = msg.text
+
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("✅ Я оплатил")
+    kb.add("⬅️ Назад")
+
+    await msg.answer("💳 После оплаты нажмите кнопку ниже", reply_markup=kb)       
     )
 DAILY_LIMIT = 3  # попыток в день
 
