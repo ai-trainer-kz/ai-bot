@@ -345,25 +345,26 @@ async def top(msg: types.Message):
     await msg.answer(text)
 # ========= PAYMENT =========
 @dp.message_handler(lambda m: m.text == "✅ Я оплатил")
-async def paid(msg: types.Message):
-    user = msg.from_user
+async def paid(message: types.Message):
 
-    text = f"""
-💰 НОВЫЙ ПЛАТЕЖ
+    user = message.from_user
 
-👤 Имя: {user.full_name}
-🆔 ID: {user.id}
-📨 @{user.username}
-"""
+    text = (
+        f"💰 НОВЫЙ ПЛАТЕЖ\n\n"
+        f"👤 Имя: {user.first_name}\n"
+        f"🆔 ID: {user.id}\n"
+        f"📩 @{user.username if user.username else 'нет'}"
+    )
 
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("7 дней", "🚀 30 дней")
+    kb.add("7 дней", "30 дней")
     kb.add("❌ Отказать")
 
+    # 👉 отправка админу
     for admin in ADMINS:
         await bot.send_message(admin, text, reply_markup=kb)
 
-    await msg.answer("✅ Заявка отправлена. Ожидайте подтверждения")
+    await message.answer("✅ Заявка отправлена. Ожидайте подтверждения")
 
 @dp.message_handler(lambda m: m.text in ["7 дней", "30 дней", "❌ Отказать"])
 async def admin_access(message: types.Message):
