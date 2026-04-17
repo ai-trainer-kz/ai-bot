@@ -362,16 +362,18 @@ async def paid(msg: types.Message):
 
     await msg.answer("✅ Заявка отправлена. Ожидайте подтверждения")
 
-@dp.message_handler(lambda m: m.text in ["7 дней", "30 дней", "❌ Отмена", "⬅️ Назад"])
-async def admin_access(message: types.Message):
+@dp.message_handler(lambda m: m.text in ["7 дней", "30 дней"])
+async def choose_tariff(msg: types.Message):
 
-    if not is_admin(message.from_user.id):
+    if is_admin(msg.from_user.id):
         return
 
-    if message.text == "❌ Отмена":
-        await message.answer("❌ Отмена", reply_markup=main_kb())
-        return
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("✅ Я оплатил")
+    kb.add("⬅️ Назад")
 
+    await msg.answer("💳 После оплаты нажмите кнопку ниже", reply_markup=kb)
+    
     if message.text == "⬅️ Назад":
         await message.answer("🏠 Главное меню", reply_markup=main_kb())
         return
