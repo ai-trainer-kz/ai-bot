@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 client = OpenAI(api_key=OPENAI_API_KEY)
 dp = Dispatcher(bot)
-
+# ========= ADMIN =========
 @dp.message_handler(lambda message: message.text and message.text.startswith("/add"))
 async def add_user(message: types.Message):
     print("ADD COMMAND RECEIVED")  # для логов
