@@ -30,9 +30,9 @@ async def pay(msg: types.Message):
     kb.add("⬅️ Назад")    
 
     await msg.answer(
-       await msg.answer(
-    "Kaspi: 4400430352720152\n7 дней — 5000 тг\n30 дней — 10000 тг"
-    ) 
+        "Kaspi: 4400430352720152\n7 дней — 5000 тг\n30 дней — 10000 тг",
+        reply_markup=kb
+    )
 DAILY_LIMIT = 3  # попыток в день
 
 logging.basicConfig(level=logging.INFO)
