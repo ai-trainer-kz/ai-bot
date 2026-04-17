@@ -41,14 +41,13 @@ logging.basicConfig(level=logging.INFO)
 async def add_user(message: types.Message):
     print("ADD COMMAND RECEIVED")  # для логов
 
-    if message.text == "❌ Отмена":
-        await message.answer("❌ Действие отменено", reply_markup=main_kb())
-        return
+@dp.message_handler(lambda m: m.text == "❌ Отмена")
+async def cancel_handler(message: types.Message):
+    await message.answer("❌ Действие отменено", reply_markup=main_kb())
 
     if message.text == "⬅️ Назад":
         await message.answer("🏠 Главное меню", reply_markup=main_kb())
-        return
-1        
+        return        
 # ========= DB =========
 if not os.path.exists("users.json"):
     with open("users.json", "w") as f:
@@ -169,6 +168,10 @@ async def to_main(message: types.Message):
 @dp.message_handler(lambda m: m.text == "🔙 Назад")
 async def back(message: types.Message):
     state = user_state.get(message.from_user.id, {})
+
+@dp.message_handler(lambda m: m.text == "⬅️ Назад")
+async def back(message: types.Message):
+    await message.answer("🏠 Главное меню", reply_markup=main_kb())
 
     if state.get("step") == "subject":
         user_state[message.from_user.id] = {"step": "menu"}
