@@ -383,8 +383,8 @@ async def admin_access(message: types.Message):
     last_msg = message.reply_to_message
 
     if not last_msg:
-    await message.answer("❗ Ответь на сообщение с платежом")
-    return
+        await message.answer("❗ Ответь на сообщение с платежом")
+        return
     
     try:
         user_id = int(re.search(r"ID: (\d+)", last_msg.text).group(1))
