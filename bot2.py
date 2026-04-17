@@ -217,7 +217,7 @@ def check_limit(uid):
 @dp.message_handler(lambda m: m.text == "📚 Предметы")
 async def subjects(msg: types.Message):
     if msg.from_user.id not in user_state:
-    user_state[msg.from_user.id] = {}
+        user_state[msg.from_user.id] = {}
 
     user_state[msg.from_user.id]["subject"] = msg.text
 
