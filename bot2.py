@@ -399,7 +399,7 @@ async def admin_access(message: types.Message):
         return
 
     if message.text == "❌ Отмена":
-        await message.answer("❌ Действие отменено", reply_markup=main_kb())
+        await message.answer("❌ Отмена", reply_markup=main_kb())
         return
 
     if message.text == "⬅️ Назад":
