@@ -21,10 +21,6 @@ bot = Bot(token=BOT_TOKEN)
 # client = OpenAI(api_key=OPENAI_API_KEY)
 dp = Dispatcher(bot)
 
-@dp.message_handler(commands=['start'])
-async def start_cmd(message: types.Message):
-    await message.answer("👋 Добро пожаловать!", reply_markup=main_kb())
-
 @dp.message_handler(lambda m: m.text == "💳 Оплата")
 async def pay(msg: types.Message):
 
@@ -34,15 +30,12 @@ async def pay(msg: types.Message):
     kb.add("⬅️ Назад")    
 
     await msg.answer(
-        "Kaspi: 4400430352720152\n7 дней — 5000 тг\n30 дней — 10000 тг",
-        reply_markup=kb
-    )
+       await msg.answer(
+    "Kaspi: 4400430352720152\n7 дней — 5000 тг\n30 дней — 10000 тг"
+    ) 
 DAILY_LIMIT = 3  # попыток в день
 
 logging.basicConfig(level=logging.INFO)
-
-
-
 # ========= ADMIN =========
 @dp.message_handler(lambda message: message.text and message.text.startswith("/add"))
 async def add_user(message: types.Message):
@@ -55,29 +48,7 @@ async def add_user(message: types.Message):
     if message.text == "⬅️ Назад":
         await message.answer("🏠 Главное меню", reply_markup=main_kb())
         return
-        
-@dp.message_handler(lambda m: m.text in ["7 дней", "30 дней", "❌ Отмена", "⬅️ Назад"])
-        
-    if not is_admin(message.from_user.id):
-        await message.answer(f"❌ Ты не админ. Твой ID: {message.from_user.id}")
-        return
-
-    try:
-        parts = message.text.split()
-        user_id = int(parts[1])
-
-        users = load_users()
-
-        users[str(user_id)] = {
-            "access_until": (datetime.now() + timedelta(days=7)).isoformat()
-        }
-
-        save_users(users)
-
-        await message.answer(f"✅ Доступ выдан: {user_id}")
-
-    except Exception as e:
-        await message.answer(f"❌ Ошибка: {e}")
+1        
 # ========= DB =========
 if not os.path.exists("users.json"):
     with open("users.json", "w") as f:
@@ -370,10 +341,6 @@ async def top(msg: types.Message):
 
     await msg.answer(text)
 # ========= PAYMENT =========
-@dp.message_handler(lambda m: m.text == "💳 Оплата")
-async def pay(msg: types.Message):
-    await msg.answer(f"Kaspi: {KASPI_NUMBER}\n7 дней 5000₸\n30 дней 10000₸")
-
 @dp.message_handler(lambda m: m.text == "✅ Я оплатил")
 async def paid(msg: types.Message):
     user = msg.from_user
@@ -437,5 +404,5 @@ async def admin_access(message: types.Message):
     
 # ========= RUN =========
 if __name__ == "__main__":
-executor.start_polling(dp, skip_updates=True)
+    executor.start_polling(dp, skip_updates=True)
 
