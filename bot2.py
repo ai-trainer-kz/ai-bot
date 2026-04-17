@@ -25,8 +25,9 @@ dp = Dispatcher(bot)
 async def pay(msg: types.Message):
 
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("✅ Я оплатил")
-    kb.add("🏠 Главное меню")
+    kb.add("7 дней", "30 дней")
+    kb.add("❌ Отмена")
+    kb.add("⬅️ Назад")    
 
     await msg.answer(
         "Kaspi: 4400430352720152\n7 дней — 5000 тг\n30 дней — 10000 тг",
@@ -35,11 +36,24 @@ async def pay(msg: types.Message):
 DAILY_LIMIT = 3  # попыток в день
 
 logging.basicConfig(level=logging.INFO)
+
+
+
 # ========= ADMIN =========
 @dp.message_handler(lambda message: message.text and message.text.startswith("/add"))
 async def add_user(message: types.Message):
     print("ADD COMMAND RECEIVED")  # для логов
 
+    if message.text == "❌ Отмена":
+        await message.answer("❌ Действие отменено", reply_markup=main_kb())
+        return
+
+    if message.text == "⬅️ Назад":
+        await message.answer("🏠 Главное меню", reply_markup=main_kb())
+        return
+        
+@dp.message_handler(lambda m: m.text in ["7 дней", "30 дней", "❌ Отмена", "⬅️ Назад"])
+        
     if not is_admin(message.from_user.id):
         await message.answer(f"❌ Ты не админ. Твой ID: {message.from_user.id}")
         return
@@ -379,8 +393,25 @@ async def paid(msg: types.Message):
 
 @dp.message_handler(lambda m: m.text in ["7 дней", "🚀 30 дней", "❌ Отказать"])
 async def admin_access(msg: types.Message):
-    if not is_admin(msg.from_user.id):
+
+    if msg.text == "❌ Отмена":
+        await msg.answer("❌ Действие отменено", reply_markup=main_kb())
         return
+    
+    if msg.text == "⬅️ Назад":
+        await msg.answer("🏠 Главное меню", reply_markup=main_kb())
+        return
+
+    if msg.text == "❌ Отмена":
+        await msg.answer("❌ Действие отменено", reply_markup=main_kb())
+        return
+    
+    if msg.text == "⬅️ Назад":
+        await msg.answer("🏠 Главное меню", reply_markup=main_kb())
+        return
+        
+        if not is_admin(msg.from_user.id):
+            return
 
     reply = msg.reply_to_message
     if not reply:
@@ -411,6 +442,8 @@ async def admin_access(msg: types.Message):
 
     await bot.send_message(user_id, f"✅ Доступ выдан на {days} дней")
     await msg.answer(f"✅ Выдал доступ: {days} дней")
+
+    await msg.answer("🏠 Главное меню", reply_markup=main_kb())
 
 # ========= RUN =========
 if __name__ == "__main__":
