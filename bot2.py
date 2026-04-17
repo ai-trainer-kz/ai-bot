@@ -152,7 +152,7 @@ async def to_main(message: types.Message):
 async def back(message: types.Message):
     state = user_state.get(message.from_user.id, {})
 
-    if state.get("step") == "subject":
+if state.get("step") == "subject":
         user_state[message.from_user.id] = {"step": "menu"}
         await message.answer("Меню", reply_markup=main_kb())
         return
@@ -163,9 +163,9 @@ async def back(message: types.Message):
         return
 
     if state.get("step") == "mode":
-    user_state[message.from_user.id] = {"step": "subject"}
-    await message.answer("Выбери предмет", reply_markup=subjects_kb())
-    return
+        user_state[message.from_user.id] = {"step": "subject"}
+        await message.answer("Выбери предмет", reply_markup=subjects_kb())
+        return
 
 if state.get("step") == "level":
     user_state[message.from_user.id] = {"step": "mode"}
