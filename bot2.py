@@ -25,13 +25,14 @@ dp = Dispatcher(bot)
 @dp.message_handler(lambda m: m.text == "💳 Оплата")
 async def pay(msg: types.Message):
 
+from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
     kb = InlineKeyboardMarkup(row_width=2)
     kb.add(
-        InlineKeyboardButton("⚡ 7 дней", callback_data=f"give_7_{msg.from_user.id}"),
-        InlineKeyboardButton("🚀 30 дней", callback_data=f"give_30_{msg.from_user.id}")
+        InlineKeyboardButton("⚡ 7 дней", callback_data=f"give_7_{user.id}"),
+        InlineKeyboardButton("🚀 30 дней", callback_data=f"give_30_{user.id}")
     )
     kb.add(
-        InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{msg.from_user.id}")
+        InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{user.id}")
     )
 
     await msg.answer(
