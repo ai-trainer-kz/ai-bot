@@ -25,20 +25,20 @@ dp = Dispatcher(bot)
 @dp.message_handler(lambda m: m.text == "💳 Оплата")
 async def pay(msg: types.Message):
 
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-
     kb = InlineKeyboardMarkup(row_width=2)
     kb.add(
-        InlineKeyboardButton("⚡ 7 дней", callback_data=f"give_7_{user.id}"),
-        InlineKeyboardButton("🚀 30 дней", callback_data=f"give_30_{user.id}")
+        InlineKeyboardButton("⚡ 7 дней", callback_data=f"give_7_{msg.from_user.id}"),
+        InlineKeyboardButton("🚀 30 дней", callback_data=f"give_30_{msg.from_user.id}")
     )
     kb.add(
-        InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{user.id}")
+        InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{msg.from_user.id}")
+    )
 
     await msg.answer(
         "Kaspi: 4400430352720152\n7 дней — 5000 тг\n30 дней — 10000 тг",
         reply_markup=kb
     )
+
     user_state.setdefault(msg.from_user.id, {})
     user_state[msg.from_user.id]["tariff"] = msg.text
 
