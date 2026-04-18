@@ -167,10 +167,10 @@ async def check_answer(message: types.Message):
     users[user]["used"] = used + 1
     save_users(users)
 
-    if used + 1 >= FREE_LIMIT and not has_access(message.from_user.id):
-    await message.answer("🔒 Бесплатные вопросы закончились\n💳 Купите доступ")
-    user_state[message.from_user.id] = {}
-    return
+   if used + 1 >= FREE_LIMIT and not has_access(message.from_user.id):
+        await message.answer("🔒 Бесплатные вопросы закончились\n💳 Купите доступ")
+        user_state[message.from_user.id] = {}
+        return
 
     text = generate_question(subject)
 
