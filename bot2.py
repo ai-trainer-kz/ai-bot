@@ -163,12 +163,10 @@ async def check_answer(message: types.Message):
     
     used = users.get(user, {}).get("used", 0)
     
-    # увеличиваем счетчик
     users.setdefault(user, {})
     users[user]["used"] = used + 1
     save_users(users)
 
-# проверка лимита
 if used + 1 >= FREE_LIMIT and not has_access(message.from_user.id):
     await message.answer("🔒 Бесплатные вопросы закончились\n💳 Купите доступ")
     user_state[message.from_user.id] = {}
@@ -181,7 +179,8 @@ if used + 1 >= FREE_LIMIT and not has_access(message.from_user.id):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("A", "B")
     kb.add("C", "D")
-
+    kb.add("⬅️ Назад")
+    kb.add("🏠 Главное меню")
     await message.answer(q + "\n\n" + "\n".join(options), reply_markup=kb)
 
     user_state[user] = {
