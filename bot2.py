@@ -42,7 +42,7 @@ async def pay(msg: types.Message):
     kb.add("⬅️ Назад")
 
     await msg.answer("💳 После оплаты нажмите кнопку ниже", reply_markup=kb)       
-    )
+    
 DAILY_LIMIT = 3  # попыток в день
 
 logging.basicConfig(level=logging.INFO)
