@@ -25,10 +25,15 @@ dp = Dispatcher(bot)
 @dp.message_handler(lambda m: m.text == "💳 Оплата")
 async def pay(msg: types.Message):
 
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("7 дней", "30 дней")
-    kb.add("❌ Отмена")
-    kb.add("⬅️ Назад")
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("⚡ 7 дней", callback_data=f"give_7_{user.id}"),
+        InlineKeyboardButton("🚀 30 дней", callback_data=f"give_30_{user.id}")
+    )
+    kb.add(
+        InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{user.id}")
 
     await msg.answer(
         "Kaspi: 4400430352720152\n7 дней — 5000 тг\n30 дней — 10000 тг",
@@ -412,6 +417,38 @@ async def admin_access(message: types.Message):
 
     await bot.send_message(user_id, f"✅ Доступ выдан на {days} дней")
     await message.answer("✅ Готово")
+
+@dp.callback_query_handler(lambda c: c.data.startswith(("give_", "deny_")))
+async def process_callback(callback_query: types.CallbackQuery):
+
+    if not is_admin(callback_query.from_user.id):
+        return
+
+    data = callback_query.data
+
+    import re
+    user_id = int(re.findall(r"\d+", data)[0])
+
+    users = load_users()
+
+    if "deny" in data:
+        await bot.send_message(user_id, "❌ Платеж отклонён")
+        await callback_query.answer("❌ Отказано")
+        return
+
+    days = 7 if "give_7" in data else 30
+
+    from datetime import datetime, timedelta
+    until = datetime.now() + timedelta(days=days)
+
+    uid = str(user_id)
+    users.setdefault(uid, {})
+    users[uid]["access_until"] = until.isoformat()
+
+    save_users(users)
+
+    await bot.send_message(user_id, f"✅ Доступ выдан на {days} дней")
+    await callback_query.answer("✅ Готово")
     
 # ========= RUN =========
 if __name__ == "__main__":
