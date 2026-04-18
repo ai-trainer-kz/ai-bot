@@ -47,6 +47,10 @@ DAILY_LIMIT = 3  # попыток в день
 
 logging.basicConfig(level=logging.INFO)
 # ========= ADMIN =========
+@dp.message_handler(commands=['id'])
+async def get_id(msg: types.Message):
+    await msg.answer(f"Твой ID: {msg.from_user.id}")
+    
 @dp.message_handler(lambda message: message.text and message.text.startswith("/add"))
 async def add_user(message: types.Message):
     print("ADD COMMAND RECEIVED")  # для логов
