@@ -90,7 +90,8 @@ def parse_question(text):
 # ========= KEYBOARDS =========
 def main_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("📚 Предметы", "💳 Оплата")
+    kb.add("📚 Предметы", "📊 Статистика")
+    kb.add("🏆 Топ", "💳 Оплата")
     return kb
 
 def subjects_kb():
@@ -111,9 +112,36 @@ async def start(msg: types.Message):
 async def subjects(msg: types.Message):
     await msg.answer("Выбери предмет", reply_markup=subjects_kb())
 
+@dp.message_handler(lambda m: m.text == "🏠 Главное меню")
+async def to_main(message: types.Message):
+    user_state[message.from_user.id] = {}
+    await message.answer("🏠 Главное меню", reply_markup=main_kb())
+
 @dp.message_handler(lambda m: m.text == "⬅️ Назад")
 async def back(msg: types.Message):
     await msg.answer("Меню", reply_markup=main_kb())
+
+@dp.message_handler(lambda m: m.text == "📊 Статистика")
+async def stats(message: types.Message):
+    users = load_users()
+    user = str(message.from_user.id)
+
+    used = users.get(user, {}).get("used", 0)
+
+    await message.answer(f"📊 Вы решили {used} вопросов")
+
+@dp.message_handler(lambda m: m.text == "🏆 Топ")
+async def top(message: types.Message):
+    users = load_users()
+
+    rating = sorted(users.items(), key=lambda x: x[1].get("used", 0), reverse=True)[:5]
+
+    text = "🏆 ТОП пользователей:\n\n"
+
+    for i, (uid, data) in enumerate(rating, 1):
+        text += f"{i}. {uid} — {data.get('used', 0)} вопросов\n"
+
+    await message.answer(text)
 
 # ========= SUBJECT =========
 @dp.message_handler(lambda m: m.text in ["Математика","Физика","Химия","Биология","История"])
@@ -209,8 +237,11 @@ async def paid(message: types.Message):
 
     user = message.from_user
 
+   users = load_users()
+
     users.setdefault(str(user.id), {})
     users[str(user.id)].setdefault("used", 0)
+    
     save_users(users)
 
     text = (
