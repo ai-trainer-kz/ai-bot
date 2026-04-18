@@ -25,20 +25,17 @@ dp = Dispatcher(bot)
 @dp.message_handler(lambda m: m.text == "💳 Оплата")
 async def pay(msg: types.Message):
 
-    kb = InlineKeyboardMarkup(row_width=2)
-    kb.add(
-        InlineKeyboardButton("⚡ 7 дней", callback_data=f"give_7_{msg.from_user.id}"),
-        InlineKeyboardButton("🚀 30 дней", callback_data=f"give_30_{msg.from_user.id}")
-    )
-    kb.add(
-        InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{msg.from_user.id}")
-    )
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("✅ Я оплатил")
+    kb.add("⬅️ Назад")
 
     await msg.answer(
-        "Kaspi: 4400430352720152\n7 дней — 5000 тг\n30 дней — 10000 тг",
+        "Kaspi: 4400430352720152\n"
+        "7 дней — 5000 тг\n"
+        "30 дней — 10000 тг\n\n"
+        "После оплаты нажмите кнопку ниже",
         reply_markup=kb
     )
-
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("✅ Я оплатил")
     kb.add("⬅️ Назад")
@@ -361,25 +358,27 @@ async def paid(message: types.Message):
 
     user = message.from_user
 
-    text = f"""
-💰 Новая заявка!
+    text = (
+        "💰 Новая заявка!\n\n"
+        f"ID: {user.id}\n"
+        f"Имя: {user.first_name}\n"
+        f"@{user.username if user.username else 'нет'}"
+    )
 
-ID: {user.id}
-Имя: {user.full_name}
-@{user.username if user.username else "нет"}
-
-Тариф: {user_state.get(user.id, {}).get("tariff", "не выбран")}
-"""
-
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("7 дней", "30 дней")
-    kb.add("❌ Отказать")
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("⚡ 7 дней", callback_data=f"give_7_{user.id}"),
+        InlineKeyboardButton("🚀 30 дней", callback_data=f"give_30_{user.id}")
+    )
+    kb.add(
+        InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{user.id}")
+    )
 
     for admin in ADMINS:
         await bot.send_message(admin, text, reply_markup=kb)
 
     await message.answer("✅ Заявка отправлена. Ожидайте подтверждения")
-
+    
 @dp.message_handler(lambda m: m.text in ["7 дней", "30 дней", "❌ Отказать"])
 async def admin_access(message: types.Message):
 
