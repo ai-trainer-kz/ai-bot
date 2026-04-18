@@ -237,7 +237,7 @@ async def paid(message: types.Message):
 
     user = message.from_user
 
-   users = load_users()
+    users = load_users()
 
     users.setdefault(str(user.id), {})
     users[str(user.id)].setdefault("used", 0)
