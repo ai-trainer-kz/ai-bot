@@ -19,6 +19,8 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 user_state = {}
 
+FREE_LIMIT = 10
+
 # ========= DB =========
 if not os.path.exists("users.json"):
     with open("users.json", "w") as f:
@@ -156,7 +158,24 @@ async def check_answer(message: types.Message):
     else:
         await message.answer(f"❌ Неправильно\nПравильный ответ: {correct}\n\n📖 {explain}")
 
+    users = load_users()
+    user = str(message.from_user.id)
+    
+    used = users.get(user, {}).get("used", 0)
+    
+    # увеличиваем счетчик
+    users.setdefault(user, {})
+    users[user]["used"] = used + 1
+    save_users(users)
+
+# проверка лимита
+if used + 1 >= FREE_LIMIT and not has_access(message.from_user.id):
+    await message.answer("🔒 Бесплатные вопросы закончились\n💳 Купите доступ")
+    user_state[message.from_user.id] = {}
+    return
+
     text = generate_question(subject)
+
     q, options, answer, explain = parse_question(text)
 
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -190,6 +209,10 @@ async def pay(msg: types.Message):
 async def paid(message: types.Message):
 
     user = message.from_user
+
+    users.setdefault(str(user.id), {})
+    users[str(user.id)].setdefault("used", 0)
+    save_users(users)
 
     text = (
         f"💰 Новая заявка!\n\n"
