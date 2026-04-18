@@ -46,11 +46,7 @@ async def pay(msg: types.Message):
 DAILY_LIMIT = 3  # попыток в день
 
 logging.basicConfig(level=logging.INFO)
-# ========= ADMIN =========
-@dp.message_handler(commands=['id'])
-async def get_id(msg: types.Message):
-    await msg.answer(f"Твой ID: {msg.from_user.id}")
-    
+# ========= ADMIN =========    
 @dp.message_handler(lambda message: message.text and message.text.startswith("/add"))
 async def add_user(message: types.Message):
     print("ADD COMMAND RECEIVED")  # для логов
@@ -360,7 +356,26 @@ async def top(msg: types.Message):
 # ========= PAYMENT =========
 @dp.message_handler(lambda m: m.text == "✅ Я оплатил")
 async def paid(message: types.Message):
-    ...
+
+    user = message.from_user
+
+    text = f"""
+💰 Новая заявка!
+
+ID: {user.id}
+Имя: {user.full_name}
+@{user.username if user.username else "нет"}
+
+Тариф: {user_state.get(user.id, {}).get("tariff", "не выбран")}
+"""
+
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("7 дней", "30 дней")
+    kb.add("❌ Отказать")
+
+    for admin in ADMINS:
+        await bot.send_message(admin, text, reply_markup=kb)
+
     await message.answer("✅ Заявка отправлена. Ожидайте подтверждения")
 
 @dp.message_handler(lambda m: m.text in ["7 дней", "30 дней", "❌ Отказать"])
@@ -372,8 +387,6 @@ async def admin_access(message: types.Message):
     if not message.reply_to_message:
         await message.answer("❗ Ответь на сообщение с платежом")
         return
-
-    import re
 
     try:
         user_id = int(re.search(r"ID: (\d+)", message.reply_to_message.text).group(1))
