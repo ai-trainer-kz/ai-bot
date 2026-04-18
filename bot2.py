@@ -22,6 +22,49 @@ bot = Bot(token=BOT_TOKEN)
 # client = OpenAI(api_key=OPENAI_API_KEY)
 dp = Dispatcher(bot)
 
+def generate_question(subject):
+    prompt = f"""
+Сгенерируй 1 тестовый вопрос по предмету {subject} (уровень ЕНТ).
+
+Формат строго такой:
+
+Q: ...
+A) ...
+B) ...
+C) ...
+D) ...
+ANSWER: A
+EXPLAIN: ...
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    return response.choices[0].message.content
+
+
+def parse_question(text):
+    lines = text.split("\n")
+
+    q = ""
+    options = []
+    answer = ""
+    explain = ""
+
+    for line in lines:
+        if line.startswith("Q:"):
+            q = line.replace("Q:", "").strip()
+        elif line.startswith(("A)", "B)", "C)", "D)")):
+            options.append(line.strip())
+        elif line.startswith("ANSWER:"):
+            answer = line.replace("ANSWER:", "").strip()
+        elif line.startswith("EXPLAIN:"):
+            explain = line.replace("EXPLAIN:", "").strip()
+
+    return q, options, answer, explain
+
 @dp.message_handler(lambda m: m.text == "💳 Оплата")
 async def pay(msg: types.Message):
 
@@ -253,10 +296,29 @@ async def subjects(msg: types.Message):
     await msg.answer("Выбери предмет", reply_markup=subjects_kb())
 
 @dp.message_handler(lambda m: m.text in ["Математика","Физика","Химия","Биология","История"])
-async def mode(msg: types.Message):
+async def subject_handler(message: types.Message):
+
     if not has_access(message.from_user.id):
         await message.answer("❌ Нет доступа")
         return
+
+    subject = message.text
+
+    text = generate_question(subject)
+    q, options, answer, explain = parse_question(text)
+
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("A", "B")
+    kb.add("C", "D")
+    kb.add("⬅️ Назад")
+
+    await message.answer(q + "\n\n" + "\n".join(options), reply_markup=kb)
+
+    user_state[message.from_user.id] = {
+        "answer": answer,
+        "explain": explain,
+        "subject": subject
+    }
 
     if not check_limit(msg.from_user.id):
         await msg.answer("Лимит попыток на сегодня исчерпан")
@@ -459,6 +521,40 @@ async def process_callback(callback_query: types.CallbackQuery):
 
     await bot.send_message(user_id, f"✅ Доступ выдан на {days} дней")
     await callback_query.answer("Готово")
+
+@dp.message_handler(lambda m: m.text in ["A","B","C","D"])
+async def check_answer(message: types.Message):
+
+    user = message.from_user.id
+
+    if user not in user_state:
+        return
+
+    correct = user_state[user]["answer"]
+    explain = user_state[user]["explain"]
+    subject = user_state[user]["subject"]
+
+    if message.text == correct:
+        await message.answer(f"✅ Правильно!\n\n📖 {explain}")
+    else:
+        await message.answer(f"❌ Неправильно\nПравильный ответ: {correct}\n\n📖 {explain}")
+
+    # следующий вопрос
+    text = generate_question(subject)
+    q, options, answer, explain = parse_question(text)
+
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("A", "B")
+    kb.add("C", "D")
+    kb.add("⬅️ Назад")
+
+    await message.answer(q + "\n\n" + "\n".join(options), reply_markup=kb)
+
+    user_state[user] = {
+        "answer": answer,
+        "explain": explain,
+        "subject": subject
+    }
     
 # ========= RUN =========
 if __name__ == "__main__":
