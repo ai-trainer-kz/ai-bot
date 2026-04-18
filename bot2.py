@@ -417,34 +417,33 @@ async def admin_access(message: types.Message):
 @dp.callback_query_handler(lambda c: c.data.startswith(("give_", "deny_")))
 async def process_callback(callback_query: types.CallbackQuery):
 
-    if not is_admin(callback_query.from_user.id):
-        return
-
     data = callback_query.data
+    user_id = int(data.split("_")[-1])
 
-    import re
-    user_id = int(re.findall(r"\d+", data)[0])
+    if data.startswith("give_7"):
+        days = 7
+    elif data.startswith("give_30"):
+        days = 30
+    else:
+        days = 0
 
-    users = load_users()
-
-    if "deny" in data:
+    if data.startswith("deny"):
         await bot.send_message(user_id, "❌ Платеж отклонён")
-        await callback_query.answer("❌ Отказано")
+        await callback_query.answer("Отказано")
         return
 
-    days = 7 if "give_7" in data else 30
+    # ✅ ВЫДАЧА ДОСТУПА
+    users = load_users()
+    expire = datetime.now() + timedelta(days=days)
 
-    from datetime import datetime, timedelta
-    until = datetime.now() + timedelta(days=days)
-
-    uid = str(user_id)
-    users.setdefault(uid, {})
-    users[uid]["access_until"] = until.isoformat()
+    users[str(user_id)] = {
+        "expire": expire.strftime("%Y-%m-%d")
+    }
 
     save_users(users)
 
     await bot.send_message(user_id, f"✅ Доступ выдан на {days} дней")
-    await callback_query.answer("✅ Готово")
+    await callback_query.answer("Готово")
     
 # ========= RUN =========
 if __name__ == "__main__":
