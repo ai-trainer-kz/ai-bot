@@ -1,6 +1,7 @@
 import os
 import logging
 import json
+import re
 from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, types
@@ -33,10 +34,6 @@ async def pay(msg: types.Message):
         "Kaspi: 4400430352720152\n7 дней — 5000 тг\n30 дней — 10000 тг",
         reply_markup=kb
     )
-
- @dp.message_handler(lambda m: m.text in ["7 дней", "30 дней"])
- async def choose_tariff(msg: types.Message):
-
     user_state.setdefault(msg.from_user.id, {})
     user_state[msg.from_user.id]["tariff"] = msg.text
 
@@ -56,6 +53,7 @@ async def add_user(message: types.Message):
 
 @dp.message_handler(lambda m: m.text == "❌ Отмена")
 async def cancel_handler(message: types.Message):
+    user_state[message.from_user.id] = {}
     await message.answer("❌ Действие отменено", reply_markup=main_kb())
 
     if message.text == "⬅️ Назад":
@@ -180,10 +178,6 @@ async def lang(msg: types.Message):
 async def to_main(message: types.Message):
     user_state[message.from_user.id] = {}
     await message.answer("🏠 Главное меню", reply_markup=main_kb())
-
-@dp.message_handler(lambda m: m.text == "🔙 Назад")
-async def back(message: types.Message):
-    state = user_state.get(message.from_user.id, {})
 
 @dp.message_handler(lambda m: m.text == "⬅️ Назад")
 async def back(message: types.Message):
@@ -362,24 +356,7 @@ async def top(msg: types.Message):
 # ========= PAYMENT =========
 @dp.message_handler(lambda m: m.text == "✅ Я оплатил")
 async def paid(message: types.Message):
-
-    user = message.from_user
-
-    text = (
-        f"💰 НОВЫЙ ПЛАТЕЖ\n\n"
-        f"👤 Имя: {user.first_name}\n"
-        f"🆔 ID: {user.id}\n"
-        f"📩 @{user.username if user.username else 'нет'}"
-    )
-
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("7 дней", "30 дней")
-    kb.add("❌ Отказать")
-
-    # 👉 отправка админу
-    for admin in ADMINS:
-        await bot.send_message(admin, text, reply_markup=kb)
-
+    ...
     await message.answer("✅ Заявка отправлена. Ожидайте подтверждения")
 
 @dp.message_handler(lambda m: m.text in ["7 дней", "30 дней", "❌ Отказать"])
@@ -388,48 +365,36 @@ async def admin_access(message: types.Message):
     if not is_admin(message.from_user.id):
         return
 
-    import re
-
-    text = message.text
-
-    # 👉 берём последнее сообщение (где был платеж)
-    last_msg = message.reply_to_message
-
-    if not last_msg:
+    if not message.reply_to_message:
         await message.answer("❗ Ответь на сообщение с платежом")
         return
-    
+
+    import re
+
     try:
-        user_id = int(re.search(r"ID: (\d+)", last_msg.text).group(1))
+        user_id = int(re.search(r"ID: (\d+)", message.reply_to_message.text).group(1))
     except:
-        await message.answer("❗ Не удалось найти ID")
+        await message.answer("❗ Не найден ID")
         return
 
     users = load_users()
 
-    # ❌ отказ
-    if "Отказать" in text:
+    if "❌ Отказать" in message.text:
         await bot.send_message(user_id, "❌ Платеж отклонён")
         await message.answer("❌ Отказано")
         return
 
-    # ✅ выдача доступа
-    from datetime import datetime, timedelta
-
-    days = 7 if "7" in text else 30
+    days = 7 if "7" in message.text else 30
     until = datetime.now() + timedelta(days=days)
 
     uid = str(user_id)
-    if uid not in users:
-        users[uid] = {}
-
+    users.setdefault(uid, {})
     users[uid]["access_until"] = until.isoformat()
+
     save_users(users)
 
     await bot.send_message(user_id, f"✅ Доступ выдан на {days} дней")
-    await message.answer(f"✅ Выдал доступ: {days} дней")
-
-    await message.answer("🏠 Главное меню", reply_markup=main_kb())
+    await message.answer("✅ Готово")
     
 # ========= RUN =========
 if __name__ == "__main__":
