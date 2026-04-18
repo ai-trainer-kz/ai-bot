@@ -71,6 +71,21 @@ def save_users(data):
     with open("users.json", "w") as f:
         json.dump(data, f, indent=4)
 
+def has_access(user_id):
+    users = load_users()
+
+    if str(user_id) not in users:
+        return False
+
+    expire = users[str(user_id)].get("expire")
+
+    if not expire:
+        return False
+
+    expire_date = datetime.strptime(expire, "%Y-%m-%d")
+
+    return datetime.now() <= expire_date
+
 # ========= KEYBOARDS =========
 def lang_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -239,8 +254,8 @@ async def subjects(msg: types.Message):
 
 @dp.message_handler(lambda m: m.text in ["Математика","Физика","Химия","Биология","История"])
 async def mode(msg: types.Message):
-    if not has_access(msg.from_user.id):
-        await msg.answer("Нет доступа")
+    if not has_access(message.from_user.id):
+        await message.answer("❌ Нет доступа")
         return
 
     if not check_limit(msg.from_user.id):
