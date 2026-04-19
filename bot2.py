@@ -4,6 +4,7 @@ import random
 from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, types
+user_data = {}
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils import executor
 from openai import OpenAI
@@ -120,6 +121,14 @@ def parse_question(text):
     return q, options, answer, explain
 
 # ========= KEYBOARDS =========
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+
+def answer_kb():
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("A", "B", "C", "D")
+    kb.add("⬅️ Назад")
+    return kb
+    
 def main_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("📚 Предметы", "📊 Статистика")
@@ -140,6 +149,21 @@ async def start(msg: types.Message):
     await msg.answer("Меню", reply_markup=main_kb())
 
 # ========= MENU =========
+@dp.message_handler(lambda message: message.text in ["A", "B", "C", "D"])
+async def check_answer(message: types.Message):
+    user_id = str(message.from_user.id)
+    answer = message.text
+
+    correct = user_data.get(user_id, {}).get("correct")
+
+    if not correct:
+        await message.answer("Сначала выбери предмет")
+        return
+
+    if answer == correct:
+        await message.answer("✅ Правильно!")
+    else:
+        await message.answer(f"❌ Неправильно\nПравильный ответ: {correct}")
 @dp.message_handler(lambda m: m.text == "📚 Предметы")
 async def subjects(msg: types.Message):
     await msg.answer("Выбери предмет", reply_markup=subjects_kb())
@@ -169,9 +193,35 @@ async def top(message: types.Message):
     await message.answer(text)
 
 # ========= SUBJECT =========
-@dp.message_handler(lambda m: m.text in ["Математика","Физика","Химия","Биология","История"])
+@dp.message_handler(lambda message: message.text in [
+    "Математика", "Физика", "Биология", "История", "Химия"
+])
 async def subject_handler(message: types.Message):
+    user_id = str(message.from_user.id)
+    subject = message.text
 
+    questions = {
+        "Математика": {
+            "q": "Сколько будет 2 + 2?\n\nA) 3\nB) 4\nC) 5\nD) 6",
+            "correct": "B"
+        },
+        "Физика": {
+            "q": "Что измеряется в Ньютонах?\n\nA) Сила\nB) Скорость\nC) Масса\nD) Время",
+            "correct": "A"
+        }
+    }
+
+    q = questions.get(subject)
+
+    if not q:
+        await message.answer("❌ Нет вопросов")
+        return
+
+    user_data[user_id] = {
+        "correct": q["correct"]
+    }
+
+    await message.answer(f"📚 {subject}\n\n{q['q']}", reply_markup=answer_kb())
     user_id = message.from_user.id
     users = load_users()
 
@@ -317,6 +367,9 @@ async def process_callback(callback_query: types.CallbackQuery):
     save_users(users)
 
     await bot.send_message(user_id, f"✅ Доступ выдан на {days} дней")
+
+@dp.message_handler()
+async def something(message: types.Message):
 
 # ========= RUN =========
 if __name__ == "__main__":
