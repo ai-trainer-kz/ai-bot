@@ -117,11 +117,8 @@ def parse_question(text):
             answer = line.replace("ANSWER:", "").strip()
 
         elif line.startswith("EXPLAIN:"):
-            explain = line.replace("EXPLAIN:", "").strip(
+            explain = line.replace("EXPLAIN:", "").strip()
 
-        elif line.startswith("ANSWER:"):
-            answer = line.replace("ANSWER:", "").strip().replace(")", "")                 
-    
     return q, options, answer, explain
 # ========= KEYBOARDS =========
 def main_kb():
