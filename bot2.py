@@ -367,11 +367,6 @@ async def process_callback(callback_query: types.CallbackQuery):
     save_users(users)
 
     await bot.send_message(user_id, f"✅ Доступ выдан на {days} дней")
-
-@dp.message_handler()
-async def something(message: types.Message):
-    await message.answer("Я получил сообщение")
-
 # ========= RUN =========
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
