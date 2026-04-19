@@ -117,8 +117,11 @@ def parse_question(text):
             answer = line.replace("ANSWER:", "").strip()
 
         elif line.startswith("EXPLAIN:"):
-            explain = line.replace("EXPLAIN:", "").strip()
+            explain = line.replace("EXPLAIN:", "").strip(
 
+       elif line.startswith("ANSWER:"):
+            answer = line.replace("ANSWER:", "").strip().replace(")", "")                 
+    
     return q, options, answer, explain
 # ========= KEYBOARDS =========
 def main_kb():
@@ -189,6 +192,10 @@ async def subject_handler(message: types.Message):
     text = generate_question(subject, message.from_user.id)
     q, options, answer, explain = parse_question(text)
 
+    if not q or len(options) < 4:
+        await message.answer("⚠️ Ошибка генерации вопроса, попробуйте ещё раз")
+        return
+
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("A", "B")
     kb.add("C", "D")
@@ -232,8 +239,7 @@ async def check_answer(message: types.Message):
         await message.answer("🔒 Бесплатные вопросы закончились\n💳 Купите доступ")
         user_state[message.from_user.id] = {}
         return
-    text = generate_question(subject)
-
+    text = generate_question(subject, message.from_user.id)
     q, options, answer, explain = parse_question(text)
 
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
