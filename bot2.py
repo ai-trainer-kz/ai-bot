@@ -80,20 +80,27 @@ def generate_question(subject):
 def parse_question(text):
     lines = text.split("\n")
 
-    q, options, answer, explain = "", [], "", ""
+    q = ""
+    options = []
+    answer = ""
+    explain = ""
 
     for line in lines:
+        line = line.strip()
+
         if line.startswith("Q:"):
             q = line.replace("Q:", "").strip()
-        elif line.startswith(("A)", "B)", "C)", "D)")):
-            options.append(line.strip())
+
+        elif line.startswith("A)") or line.startswith("B)") or line.startswith("C)") or line.startswith("D)"):
+            options.append(line)
+
         elif line.startswith("ANSWER:"):
             answer = line.replace("ANSWER:", "").strip()
+
         elif line.startswith("EXPLAIN:"):
             explain = line.replace("EXPLAIN:", "").strip()
 
     return q, options, answer, explain
-
 # ========= KEYBOARDS =========
 def main_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -188,7 +195,7 @@ async def check_answer(message: types.Message):
     explain = user_state[user]["explain"]
     subject = user_state[user]["subject"]
 
-    if message.text == correct:
+    if message.text.strip().upper() == correct.strip().upper():
         await message.answer(f"✅ Правильно!\n\n📖 {explain}")
     else:
         await message.answer(f"❌ Неправильно\nПравильный ответ: {correct}\n\n📖 {explain}")
@@ -206,7 +213,6 @@ async def check_answer(message: types.Message):
         await message.answer("🔒 Бесплатные вопросы закончились\n💳 Купите доступ")
         user_state[message.from_user.id] = {}
         return
-
     text = generate_question(subject)
 
     q, options, answer, explain = parse_question(text)
