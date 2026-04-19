@@ -119,7 +119,7 @@ def parse_question(text):
         elif line.startswith("EXPLAIN:"):
             explain = line.replace("EXPLAIN:", "").strip(
 
-       elif line.startswith("ANSWER:"):
+        elif line.startswith("ANSWER:"):
             answer = line.replace("ANSWER:", "").strip().replace(")", "")                 
     
     return q, options, answer, explain
