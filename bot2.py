@@ -370,6 +370,7 @@ async def process_callback(callback_query: types.CallbackQuery):
 
 @dp.message_handler()
 async def something(message: types.Message):
+    await message.answer("Я получил сообщение")
 
 # ========= RUN =========
 if __name__ == "__main__":
