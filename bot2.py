@@ -49,43 +49,52 @@ def has_access(user_id):
     return datetime.now() <= expire_date
 
 # ========= AI =========
-def generate_question(subject):
+def generate_question(subject, user_id):
     random_seed = random.randint(1, 100000)
 
+    history = last_questions.get(user_id, [])
+
+    history_text = "\n".join(history[-5:])  # последние 5
+
     prompt = f"""
-    Ты строгий AI-тренер для подготовки к ЕНТ.
-    
-    Сгенерируй 1 УНИКАЛЬНЫЙ тестовый вопрос по предмету {subject}.
-    
-    ❗ ВАЖНО:
-    - вопрос НЕ должен повторяться
-    - каждый раз новая тема внутри предмета
-    - НЕ повторяй предыдущие вопросы и объяснения
-    - объяснение должно быть конкретно к этому вопросу
-    - объяснение должно быть понятным (как учитель объясняет)
-    - НЕ используй одинаковые объяснения
-    - правильный ответ должен быть случайным (A/B/C/D)
-    - варианты должны быть правдоподобными (не очевидный мусор)
-    
-    Уникальность: {random_seed}
-    
-    Формат строго такой (НЕ нарушай формат):
-    
-    Q: текст вопроса
-    A) вариант
-    B) вариант
-    C) вариант
-    D) вариант
-    ANSWER: A
-    EXPLAIN: подробное объяснение
-    """
+Ты строгий AI-тренер для ЕНТ.
+
+Сгенерируй 1 УНИКАЛЬНЫЙ вопрос по предмету {subject}.
+
+НЕ ПОВТОРЯЙ эти вопросы:
+{history_text}
+
+❗ Требования:
+- новый вопрос
+- новая тема
+- разное объяснение
+- правильный ответ случайный
+
+Уникальность: {random_seed}
+
+Формат:
+
+Q: ...
+A) ...
+B) ...
+C) ...
+D) ...
+ANSWER: A
+EXPLAIN: ...
+"""
+
     response = client.chat.completions.create(
-    model="gpt-4o",
-    messages=[{"role": "user", "content": prompt}],
-    temperature=1.2
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=1.2
     )
 
-    return response.choices[0].message.content
+    text = response.choices[0].message.content
+
+    # сохраняем вопрос
+    last_questions.setdefault(user_id, []).append(text)
+
+    return text
 
 def parse_question(text):
     lines = text.split("\n")
@@ -177,7 +186,7 @@ async def subject_handler(message: types.Message):
 
     subject = message.text
 
-    text = generate_question(subject)
+    text = generate_question(subject, message.from_user.id)
     q, options, answer, explain = parse_question(text)
 
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
