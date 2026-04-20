@@ -119,7 +119,7 @@ async def start(message: types.Message):
 async def subjects(message: types.Message):
     await message.answer("Выбери предмет", reply_markup=subjects_kb())
 
-@dp.message_handler(lambda m: m.text in ["Математика", "Физика", "Биология", "Химия", "История"])
+@dp.message_handler(lambda m: m.text and m.text.strip().lower() in ["математика", "физика", "биология", "химия", "история"])
 async def subject_handler(message: types.Message):
     await send_question(message, message.text)
 
