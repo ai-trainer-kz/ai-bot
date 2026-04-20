@@ -4,7 +4,6 @@ import random
 from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, types
-user_data = {}
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils import executor
 from openai import OpenAI
@@ -53,28 +52,14 @@ def has_access(user_id):
 
 # ========= AI =========
 def generate_question(subject, user_id):
-    random_seed = random.randint(1, 100000)
-
-    history = last_questions.get(user_id, [])
-    history_text = "\n".join(history[-5:])
-
     prompt = f"""
-Ты строгий AI-тренер для ЕНТ.
+Ты AI-тренер для ЕНТ.
 
-Сгенерируй 1 УНИКАЛЬНЫЙ вопрос по предмету {subject}.
+Сгенерируй 1 новый вопрос по предмету {subject}.
 
-НЕ ПОВТОРЯЙ:
-{history_text}
+Уровень сложности: случайный (легкий / средний / сложный)
 
-Требования:
-- новый вопрос
-- 4 варианта
-- ответ случайный
-- объяснение
-
-Уникальность: {random_seed}
-
-Формат:
+Формат строго:
 Q: ...
 A) ...
 B) ...
@@ -90,45 +75,35 @@ EXPLAIN: ...
         temperature=1.2
     )
 
-    text = response.choices[0].message.content
-    last_questions.setdefault(user_id, []).append(text)
-
-    return text
+    return response.choices[0].message.content
 
 def parse_question(text):
     lines = text.split("\n")
 
-    q = ""
-    options = []
-    answer = ""
-    explain = ""
+    q, options, answer, explain = "", [], "", ""
 
     for line in lines:
         line = line.strip()
 
         if line.startswith("Q:"):
             q = line.replace("Q:", "").strip()
-
         elif line.startswith(("A)", "B)", "C)", "D)")):
             options.append(line)
-
         elif line.startswith("ANSWER:"):
             answer = line.replace("ANSWER:", "").strip()
-
         elif line.startswith("EXPLAIN:"):
             explain = line.replace("EXPLAIN:", "").strip()
 
     return q, options, answer, explain
 
 # ========= KEYBOARDS =========
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-
 def answer_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("A", "B", "C", "D")
+    kb.add("A", "B")
+    kb.add("C", "D")
     kb.add("⬅️ Назад")
     return kb
-    
+
 def main_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("📚 Предметы", "📊 Статистика")
@@ -148,29 +123,16 @@ def subjects_kb():
 async def start(msg: types.Message):
     await msg.answer("Меню", reply_markup=main_kb())
 
+# ========= BACK =========
+@dp.message_handler(lambda m: m.text == "⬅️ Назад")
+async def back(msg: types.Message):
+    user_state[msg.from_user.id] = {}
+    await msg.answer("Меню", reply_markup=main_kb())
+
 # ========= MENU =========
-@dp.message_handler(lambda message: message.text in ["A", "B", "C", "D"])
-async def check_answer(message: types.Message):
-    user_id = str(message.from_user.id)
-    answer = message.text
-
-    correct = user_data.get(user_id, {}).get("correct")
-
-    if not correct:
-        await message.answer("Сначала выбери предмет")
-        return
-
-    if answer == correct:
-        await message.answer("✅ Правильно!")
-    else:
-        await message.answer(f"❌ Неправильно\nПравильный ответ: {correct}")
 @dp.message_handler(lambda m: m.text == "📚 Предметы")
 async def subjects(msg: types.Message):
     await msg.answer("Выбери предмет", reply_markup=subjects_kb())
-
-@dp.message_handler(lambda m: m.text == "⬅️ Назад")
-async def back(msg: types.Message):
-    await msg.answer("Меню", reply_markup=main_kb())
 
 @dp.message_handler(lambda m: m.text == "📊 Статистика")
 async def stats(message: types.Message):
@@ -197,39 +159,13 @@ async def top(message: types.Message):
     "Математика", "Физика", "Биология", "История", "Химия"
 ])
 async def subject_handler(message: types.Message):
-    user_id = str(message.from_user.id)
-    subject = message.text
-
-    questions = {
-        "Математика": {
-            "q": "Сколько будет 2 + 2?\n\nA) 3\nB) 4\nC) 5\nD) 6",
-            "correct": "B"
-        },
-        "Физика": {
-            "q": "Что измеряется в Ньютонах?\n\nA) Сила\nB) Скорость\nC) Масса\nD) Время",
-            "correct": "A"
-        }
-    }
-
-    q = questions.get(subject)
-
-    if not q:
-        await message.answer("❌ Нет вопросов")
-        return
-
-    user_data[user_id] = {
-        "correct": q["correct"]
-    }
-
-    await message.answer(f"📚 {subject}\n\n{q['q']}", reply_markup=answer_kb())
     user_id = message.from_user.id
-    users = load_users()
 
+    users = load_users()
     used = users.get(str(user_id), {}).get("used", 0)
 
-    # 🔒 лимит
     if used >= FREE_LIMIT and not has_access(user_id):
-        await message.answer("🔒 Бесплатные вопросы закончились\n💳 Купите доступ")
+        await message.answer("🔒 Лимит достигнут\n💳 Оплатите доступ")
         return
 
     subject = message.text
@@ -238,14 +174,8 @@ async def subject_handler(message: types.Message):
     q, options, answer, explain = parse_question(text)
 
     if not q or len(options) < 4:
-        await message.answer("⚠️ Ошибка генерации, попробуй ещё")
+        await message.answer("⚠️ Ошибка генерации")
         return
-
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("A", "B")
-    kb.add("C", "D")
-
-    await message.answer(q + "\n\n" + "\n".join(options), reply_markup=kb)
 
     user_state[user_id] = {
         "answer": answer,
@@ -253,13 +183,16 @@ async def subject_handler(message: types.Message):
         "subject": subject
     }
 
+    await message.answer(q + "\n\n" + "\n".join(options), reply_markup=answer_kb())
+
 # ========= ANSWER =========
-@dp.message_handler(lambda m: m.text in ["A","B","C","D"])
+@dp.message_handler(lambda m: m.text in ["A", "B", "C", "D"])
 async def check_answer(message: types.Message):
 
     user_id = message.from_user.id
 
-    if user_id not in user_state:
+    if user_id not in user_state or not user_state[user_id]:
+        await message.answer("Сначала выбери предмет")
         return
 
     correct = user_state[user_id]["answer"]
@@ -285,21 +218,17 @@ async def check_answer(message: types.Message):
         user_state[user_id] = {}
         return
 
+    # 👉 следующий вопрос
     text = generate_question(subject, user_id)
     q, options, answer, explain = parse_question(text)
-
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("A", "B")
-    kb.add("C", "D")
-    kb.add("⬅️ Назад")
-
-    await message.answer(q + "\n\n" + "\n".join(options), reply_markup=kb)
 
     user_state[user_id] = {
         "answer": answer,
         "explain": explain,
         "subject": subject
     }
+
+    await message.answer(q + "\n\n" + "\n".join(options), reply_markup=answer_kb())
 
 # ========= PAYMENT =========
 @dp.message_handler(lambda m: m.text == "💳 Оплата")
@@ -367,6 +296,7 @@ async def process_callback(callback_query: types.CallbackQuery):
     save_users(users)
 
     await bot.send_message(user_id, f"✅ Доступ выдан на {days} дней")
+
 # ========= RUN =========
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
