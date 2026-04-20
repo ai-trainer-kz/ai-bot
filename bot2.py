@@ -60,17 +60,19 @@ def answers_kb():
 # ===== AI =====
 async def generate_question(subject):
     prompt = f"""
-    Ты генератор тестов для ЕНТ.
+    Ты строгий генератор тестов для ЕНТ.
     
     Предмет: {subject}
     
     Сгенерируй 1 вопрос.
     
-    ВАЖНО:
-    - НЕ показывай ответ в тексте вопроса
-    - НЕ показывай объяснение в тексте вопроса
+    ЖЕСТКИЕ ПРАВИЛА:
+    - Всегда давай объяснение
+    - Объяснение должно быть простым и понятным школьнику
+    - НЕ пропускай объяснение
+    - НЕ пиши лишний текст
     
-    Формат:
+    Формат строго:
     Вопрос: ...
     A) ...
     B) ...
@@ -79,6 +81,25 @@ async def generate_question(subject):
     Ответ: A/B/C/D
     Объяснение: ...
     """
+
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    return response.choices[0].message.content
+
+async def generate_explanation(question, correct):
+    prompt = f"""
+Объясни решение задачи.
+
+Вопрос:
+{question}
+
+Правильный ответ: {correct}
+
+Дай короткое и понятное объяснение.
+"""
 
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
@@ -141,11 +162,12 @@ async def send_question(message, subject):
     raw = await generate_question(subject)
     data = parse_question(raw)
 
-    user_data[user_id] = {
-        "correct": data["correct"],
-        "explanation": data["explanation"],
-        "subject": subject
-    }
+user_data[user_id] = {
+    "correct": data["correct"],
+    "explanation": data["explanation"],
+    "question": clean_text,  # 🔥 ОБЯЗАТЕЛЬНО
+    "subject": subject
+}
 
     await msg.delete()
     clean_text = re.sub(r"Ответ:.*", "", data["text"], flags=re.DOTALL)
@@ -162,8 +184,14 @@ async def check_answer(message: types.Message):
 
     data = user_data.get(user_id, {})
     correct = data.get("correct")
+    
+    question = data.get("question", "")
     explanation = data.get("explanation", "")
-    subject = data.get("subject")
+
+if not explanation:
+    explanation = await generate_explanation(question, correct)
+    if not explanation:
+    explanation = "📖 Объяснение временно недоступно, попробуй следующий вопрос."
 
     if answer == correct:
         await message.answer("✅ Правильно!")
