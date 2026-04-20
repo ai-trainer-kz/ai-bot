@@ -171,11 +171,11 @@ clean_text = clean_text.replace("\\(", "").replace("\\)", "")
 user_data[user_id] = {
     "correct": data["correct"],
     "explanation": data["explanation"],
-    "question": clean_text,  # 🔥 ОБЯЗАТЕЛЬНО
+    "question": clean_text,
     "subject": subject
 }
-await message.answer(clean_text.strip(), reply_markup=answers_kb())
 
+await message.answer(clean_text.strip(), reply_markup=answers_kb())
 # ===== ANSWER =====
 @dp.message_handler(lambda m: m.text in ["A", "B", "C", "D"])
 async def check_answer(message: types.Message):
