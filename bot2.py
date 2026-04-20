@@ -202,7 +202,8 @@ async def send_question(message, subject):
     q = re.sub(r"Ответ:.*","",data["text"],flags=re.DOTALL)
     q = re.sub(r"Объяснение:.*","",q,flags=re.DOTALL)
 
-    user_data.setdefault(uid,{})
+    user_data.setdefault(uid, {})
+
     user_data[uid].update({
         "correct":data["correct"],
         "question":q,
@@ -240,7 +241,16 @@ async def answer(message: types.Message):
     explanation = data["explanation"] or await generate_explanation(data["question"], users[uid]["lang"])
     await message.answer(f"📖 {clean_text(explanation)}")
 
-    await send_question(message, data["subject"])
+    # 🔥 защита от потери subject
+    subject = data.get("subject")
+    
+    if not subject:
+        subject = "Математика"
+    
+    # 🔥 маленькая пауза (важно!)
+    await message.answer("➡️ Следующий вопрос...")
+    
+    await send_question(message, subject)
 
 # ===== STATS =====
 @dp.message_handler(lambda m: m.text == "📊 Статистика")
