@@ -46,6 +46,7 @@ def main_menu():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("📚 Предметы", "📊 Статистика")
     kb.add("🏆 Топ", "💳 Оплата")
+    kb.add("🌐 Тіл / Язык")
     return kb
 
 def subjects_kb():
@@ -63,10 +64,38 @@ def answers_kb():
     kb.add("⬅️ Назад")
     return kb
 
+# ===== LANGUAGE =====
+@dp.message_handler(lambda m: m.text == "🌐 Тіл / Язык")
+async def choose_lang(message: types.Message):
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("🇷🇺 Русский", "🇰🇿 Қазақша")
+    kb.add("⬅️ Назад")
+    await message.answer("Выбери язык / Тілді таңда", reply_markup=kb)
+
+@dp.message_handler(lambda m: m.text in ["🇷🇺 Русский", "🇰🇿 Қазақша"])
+async def set_lang(message: types.Message):
+    users = load_users()
+    user_id = str(message.from_user.id)
+
+    users.setdefault(user_id, {})
+
+    if "Русский" in message.text:
+        users[user_id]["lang"] = "ru"
+        await message.answer("Язык установлен: Русский")
+    else:
+        users[user_id]["lang"] = "kz"
+        await message.answer("Тіл орнатылды: Қазақша")
+
+    save_users(users)
+
 # ===== AI =====
-async def generate_question(subject):
+async def generate_question(subject, lang="ru"):
+    language = "на русском языке" if lang == "ru" else "қазақ тілінде"
+
     prompt = f"""
 Ты генератор тестов ЕНТ.
+
+Сгенерируй {language}
 
 Предмет: {subject}
 
@@ -85,9 +114,11 @@ D) ...
     )
     return response.choices[0].message.content
 
-async def generate_explanation(question, correct):
+async def generate_explanation(question, correct, lang="ru"):
+    language = "на русском языке" if lang == "ru" else "қазақ тілінде"
+
     prompt = f"""
-Объясни решение задачи.
+Объясни решение задачи {language}.
 
 Вопрос:
 {question}
@@ -178,8 +209,11 @@ async def send_question(message, subject):
         "expire": "",
         "correct": 0,
         "wrong": 0,
-        "name": message.from_user.full_name
+        "name": message.from_user.full_name,
+        "lang": "ru"
     })
+
+    lang = users[user_id].get("lang", "ru")
 
     if not users[user_id]["expire"]:
         if users[user_id]["used"] >= 10:
@@ -191,7 +225,7 @@ async def send_question(message, subject):
 
     msg = await message.answer("⏳ Генерирую...")
 
-    raw = await generate_question(subject)
+    raw = await generate_question(subject, lang)
     data = parse_question(raw)
 
     await msg.delete()
@@ -219,18 +253,21 @@ async def check_answer(message: types.Message):
     question = data.get("question")
     explanation = data.get("explanation")
 
+    users = load_users()
+    lang = users.get(user_id, {}).get("lang", "ru")
+
     if not explanation:
-        explanation = await generate_explanation(question, correct)
+        explanation = await generate_explanation(question, correct, lang)
 
     explanation = clean_text(explanation)
 
-    users = load_users()
     users.setdefault(user_id, {
         "used": 0,
         "expire": "",
         "correct": 0,
         "wrong": 0,
-        "name": message.from_user.full_name
+        "name": message.from_user.full_name,
+        "lang": "ru"
     })
 
     if user_answer == correct:
