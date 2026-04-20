@@ -174,8 +174,6 @@ user_data[user_id] = {
     "question": clean_text,  # 🔥 ОБЯЗАТЕЛЬНО
     "subject": subject
 }
-    
-    
     await message.answer(clean_text.strip(), reply_markup=answers_kb())
 
 # ===== ANSWER =====
