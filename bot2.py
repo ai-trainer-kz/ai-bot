@@ -1,11 +1,10 @@
 import os
 import json
-import random
 import re
 from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils import executor
 
 from openai import OpenAI
@@ -19,7 +18,7 @@ dp = Dispatcher(bot)
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-ADMINS = [8398266271]  # <-- вставь свой ID
+ADMIN_ID = 8398266271  # твой ID
 
 USERS_FILE = "users.json"
 user_data = {}
@@ -60,27 +59,21 @@ def answers_kb():
 # ===== AI =====
 async def generate_question(subject):
     prompt = f"""
-    Ты строгий генератор тестов для ЕНТ.
-    
-    Предмет: {subject}
-    
-    Сгенерируй 1 вопрос.
-    
-    ЖЕСТКИЕ ПРАВИЛА:
-    - Всегда давай объяснение
-    - Объяснение должно быть простым и понятным школьнику
-    - НЕ пропускай объяснение
-    - НЕ пиши лишний текст
-    
-    Формат строго:
-    Вопрос: ...
-    A) ...
-    B) ...
-    C) ...
-    D) ...
-    Ответ: A/B/C/D
-    Объяснение: ...
-    """
+Ты строгий генератор тестов для ЕНТ.
+
+Предмет: {subject}
+
+Сгенерируй 1 вопрос.
+
+Формат строго:
+Вопрос: ...
+A) ...
+B) ...
+C) ...
+D) ...
+Ответ: A/B/C/D
+Объяснение: ...
+"""
 
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
@@ -98,14 +91,12 @@ async def generate_explanation(question, correct):
 
 Правильный ответ: {correct}
 
-Дай короткое и понятное объяснение.
+Коротко.
 """
-
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[{"role": "user", "content": prompt}]
     )
-
     return response.choices[0].message.content
 
 def parse_question(text):
@@ -139,13 +130,11 @@ async def send_question(message, subject):
 
     users.setdefault(user_id, {"used": 0, "expire": ""})
 
-    # проверка подписки
     if users[user_id]["expire"]:
         expire_date = datetime.strptime(users[user_id]["expire"], "%Y-%m-%d")
         if expire_date <= datetime.now():
             users[user_id]["expire"] = ""
 
-    # лимит
     if not users[user_id]["expire"]:
         if users[user_id]["used"] >= 10:
             await message.answer("💳 Лимит закончился. Оплати доступ.")
@@ -173,6 +162,7 @@ async def send_question(message, subject):
     }
 
     await message.answer(clean_text.strip(), reply_markup=answers_kb())
+
 # ===== ANSWER =====
 @dp.message_handler(lambda m: m.text in ["A", "B", "C", "D"])
 async def check_answer(message: types.Message):
@@ -187,19 +177,18 @@ async def check_answer(message: types.Message):
 
     if not explanation:
         explanation = await generate_explanation(question, correct)
-
         if not explanation:
-            explanation = "📖 Объяснение временно недоступно, попробуй следующий вопрос."
+            explanation = "📖 Объяснение временно недоступно"
 
     if answer == correct:
         await message.answer("✅ Правильно!")
     else:
         await message.answer(f"❌ Неправильно\nПравильный ответ: {correct}")
 
-    if explanation:
-        await message.answer(f"📖 {explanation}")
+    await message.answer(f"📖 {explanation}")
 
     await send_question(message, data.get("subject", "Математика"))
+
 # ===== BACK =====
 @dp.message_handler(lambda m: m.text == "⬅️ Назад")
 async def back(message: types.Message):
@@ -207,51 +196,43 @@ async def back(message: types.Message):
 
 # ===== PAYMENT =====
 @dp.message_handler(lambda m: m.text == "💳 Оплата")
-async def pay(message: types.Message):
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("✅ Я оплатил")
-    kb.add("⬅️ Назад")
-    
- # ===== ОПЛАТА =====
-@dp.message_handler(lambda m: m.text == "💳 Оплата")
 async def payment(message: types.Message):
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("Я оплатил")
+    kb.add("⬅️ Назад")
+
     await message.answer(
         "💳 Оплата:\n\n"
         "7 дней — 5000₸\n"
         "30 дней — 10000₸\n\n"
         "Kaspi: 4400430352720152\n"
         "Имя: Bauyrzhan\n\n"
-        "После оплаты нажми: Я оплатил"
+        "После оплаты нажми кнопку ниже",
+        reply_markup=kb
     )
 
 @dp.message_handler(lambda m: m.text.lower() == "я оплатил")
 async def paid(message: types.Message):
     user_id = message.from_user.id
-    username = message.from_user.username
+    username = message.from_user.username or "-"
     name = message.from_user.full_name
 
-    await bot.send_message(
-        ADMIN_ID,
-        f"💰 Новая оплата!\n\n"
-        f"👤 Имя: {name}\n"
-        f"📩 Username: @{username}\n"
-        f"🆔 ID: {user_id}"
-    )
-
-    await message.answer("✅ Заявка отправлена админу, ожидай подтверждения")
     kb = InlineKeyboardMarkup()
     kb.add(
-        InlineKeyboardButton("7 дней", callback_data=f"give_7_{user.id}"),
-        InlineKeyboardButton("30 дней", callback_data=f"give_30_{user.id}")
+        InlineKeyboardButton("✅ 7 дней", callback_data=f"give_7_{user_id}"),
+        InlineKeyboardButton("✅ 30 дней", callback_data=f"give_30_{user_id}")
     )
-    kb.add(InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{user.id}"))
+    kb.add(InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{user_id}"))
 
-    text = f"💰 Заявка\nID: {user.id}\nИмя: {user.first_name}"
+    text = (
+        f"💰 Новая оплата!\n\n"
+        f"👤 {name}\n"
+        f"📩 @{username}\n"
+        f"🆔 {user_id}"
+    )
 
-    for admin in ADMINS:
-        await bot.send_message(admin, text, reply_markup=kb)
-
-    await message.answer("✅ Заявка отправлена")
+    await bot.send_message(ADMIN_ID, text, reply_markup=kb)
+    await message.answer("✅ Заявка отправлена админу")
 
 # ===== ADMIN =====
 @dp.callback_query_handler(lambda c: c.data.startswith(("give_", "deny_")))
