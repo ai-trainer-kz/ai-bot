@@ -190,8 +190,9 @@ async def check_answer(message: types.Message):
 
 if not explanation:
     explanation = await generate_explanation(question, correct)
+
     if not explanation:
-    explanation = "📖 Объяснение временно недоступно, попробуй следующий вопрос."
+        explanation = "📖 Объяснение временно недоступно, попробуй следующий вопрос."
 
     if answer == correct:
         await message.answer("✅ Правильно!")
