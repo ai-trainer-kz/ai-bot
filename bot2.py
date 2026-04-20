@@ -187,15 +187,15 @@ async def check_answer(message: types.Message):
 
     data = user_data.get(user_id, {})
     correct = data.get("correct")
-    
+
     question = data.get("question", "")
     explanation = data.get("explanation", "")
 
-if not explanation:
-    explanation = await generate_explanation(question, correct)
-
     if not explanation:
-        explanation = "📖 Объяснение временно недоступно, попробуй следующий вопрос."
+        explanation = await generate_explanation(question, correct)
+
+        if not explanation:
+            explanation = "📖 Объяснение временно недоступно, попробуй следующий вопрос."
 
     if answer == correct:
         await message.answer("✅ Правильно!")
@@ -205,8 +205,7 @@ if not explanation:
     if explanation:
         await message.answer(f"📖 {explanation}")
 
-    await send_question(message, subject)
-
+    await send_question(message, data.get("subject", "Математика"))
 # ===== BACK =====
 @dp.message_handler(lambda m: m.text == "⬅️ Назад")
 async def back(message: types.Message):
