@@ -162,17 +162,19 @@ async def send_question(message, subject):
     raw = await generate_question(subject)
     data = parse_question(raw)
 
+    await msg.delete()
+
+clean_text = re.sub(r"Ответ:.*", "", data["text"], flags=re.DOTALL)
+clean_text = re.sub(r"Объяснение:.*", "", clean_text, flags=re.DOTALL)
+clean_text = clean_text.replace("\\(", "").replace("\\)", "")
+
 user_data[user_id] = {
     "correct": data["correct"],
     "explanation": data["explanation"],
     "question": clean_text,  # 🔥 ОБЯЗАТЕЛЬНО
     "subject": subject
 }
-
-    await msg.delete()
-    clean_text = re.sub(r"Ответ:.*", "", data["text"], flags=re.DOTALL)
-    clean_text = re.sub(r"Объяснение:.*", "", clean_text, flags=re.DOTALL)
-    clean_text = clean_text.replace("\\(", "").replace("\\)", "")
+    
     
     await message.answer(clean_text.strip(), reply_markup=answers_kb())
 
