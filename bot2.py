@@ -18,7 +18,7 @@ dp = Dispatcher(bot)
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-ADMIN_ID = 8398266271  # твой ID
+ADMIN_ID = 8398266271
 
 USERS_FILE = "users.json"
 user_data = {}
@@ -82,14 +82,15 @@ D) ...
 
     return response.choices[0].message.content
 
-async def generate_explanation(question, correct):
+async def generate_explanation(question):
     prompt = f"""
 Объясни решение задачи.
 
 Вопрос:
 {question}
 
-Не указывай букву ответа.
+Дай краткое и понятное объяснение.
+НЕ указывай букву ответа.
 """
 
     response = client.chat.completions.create(
@@ -174,8 +175,9 @@ async def check_answer(message: types.Message):
     question = data.get("question", "")
     explanation = data.get("explanation", "")
 
+    # если нет объяснения — генерим один раз
     if not explanation:
-        explanation = await generate_explanation(question, correct)
+        explanation = await generate_explanation(question)
         if not explanation:
             explanation = "📖 Объяснение временно недоступно"
 
@@ -184,15 +186,12 @@ async def check_answer(message: types.Message):
     else:
         await message.answer(f"❌ Неправильно\nПравильный ответ: {correct}")
 
-        explanation = await generate_explanation(question, correct)
+    # ✅ ВСЕГДА одно объяснение и один правильный ответ
+    await message.answer(
+        f"📖 {explanation}\n\nПравильный ответ: {correct}"
+    )
 
-        await message.answer(
-            f"{explanation}\n\nПравильный ответ: {correct}"
-        )
-
-        await message.answer(f"📖 {explanation}")
-    
-        await send_question(message, data.get("subject", "Математика"))
+    await send_question(message, data.get("subject", "Математика"))
 
 # ===== BACK =====
 @dp.message_handler(lambda m: m.text == "⬅️ Назад")
