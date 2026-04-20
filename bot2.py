@@ -89,10 +89,9 @@ async def generate_explanation(question, correct):
 Вопрос:
 {question}
 
-Правильный ответ: {correct}
-
-Коротко.
+Не указывай букву ответа.
 """
+
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[{"role": "user", "content": prompt}]
@@ -105,7 +104,7 @@ def parse_question(text):
 
     return {
         "text": text,
-        "correct": correct.group(1) if correct else "A",
+        "correct": correct.group(1) if correct else None,
         "explanation": explanation.group(1) if explanation else ""
     }
 
@@ -185,9 +184,15 @@ async def check_answer(message: types.Message):
     else:
         await message.answer(f"❌ Неправильно\nПравильный ответ: {correct}")
 
-    await message.answer(f"📖 {explanation}")
+        explanation = await generate_explanation(question, correct)
 
-    await send_question(message, data.get("subject", "Математика"))
+        await message.answer(
+            f"{explanation}\n\nПравильный ответ: {correct}"
+        )
+
+        await message.answer(f"📖 {explanation}")
+    
+        await send_question(message, data.get("subject", "Математика"))
 
 # ===== BACK =====
 @dp.message_handler(lambda m: m.text == "⬅️ Назад")
