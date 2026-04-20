@@ -19,7 +19,7 @@ dp = Dispatcher(bot)
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-ADMINS = [123456789]  # <-- вставь свой ID
+ADMINS = [8398266271]  # <-- вставь свой ID
 
 USERS_FILE = "users.json"
 user_data = {}
@@ -209,18 +209,36 @@ async def back(message: types.Message):
 @dp.message_handler(lambda m: m.text == "💳 Оплата")
 async def pay(message: types.Message):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("Я оплатил")
+    kb.add("✅ Я оплатил")
     kb.add("⬅️ Назад")
-
+    
+ # ===== ОПЛАТА =====
+@dp.message_handler(lambda m: m.text == "💳 Оплата")
+async def payment(message: types.Message):
     await message.answer(
-        "💳 Оплата:\n7 дней — 5000₸\n30 дней — 10000₸",
-        reply_markup=kb
+        "💳 Оплата:\n\n"
+        "7 дней — 5000₸\n"
+        "30 дней — 10000₸\n\n"
+        "Kaspi: 4400430352720152\n"
+        "Имя: Bauyrzhan\n\n"
+        "После оплаты нажми: Я оплатил"
     )
 
-@dp.message_handler(lambda m: m.text == "Я оплатил")
+@dp.message_handler(lambda m: m.text.lower() == "я оплатил")
 async def paid(message: types.Message):
-    user = message.from_user
+    user_id = message.from_user.id
+    username = message.from_user.username
+    name = message.from_user.full_name
 
+    await bot.send_message(
+        ADMIN_ID,
+        f"💰 Новая оплата!\n\n"
+        f"👤 Имя: {name}\n"
+        f"📩 Username: @{username}\n"
+        f"🆔 ID: {user_id}"
+    )
+
+    await message.answer("✅ Заявка отправлена админу, ожидай подтверждения")
     kb = InlineKeyboardMarkup()
     kb.add(
         InlineKeyboardButton("7 дней", callback_data=f"give_7_{user.id}"),
