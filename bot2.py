@@ -211,7 +211,7 @@ async def payment(message: types.Message):
         reply_markup=kb
     )
 
-@dp.message_handler(lambda m: m.text.lower() == "я оплатил")
+@dp.message_handler(lambda m: m.text.lower() == "✅ я оплатил")
 async def paid(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.username or "-"
