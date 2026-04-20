@@ -142,9 +142,7 @@ async def send_question(message, subject):
     # проверка подписки
     if users[user_id]["expire"]:
         expire_date = datetime.strptime(users[user_id]["expire"], "%Y-%m-%d")
-        if expire_date > datetime.now():
-            pass
-        else:
+        if expire_date <= datetime.now():
             users[user_id]["expire"] = ""
 
     # лимит
@@ -153,7 +151,6 @@ async def send_question(message, subject):
             await message.answer("💳 Лимит закончился. Оплати доступ.")
             return
 
-    # увеличиваем счётчик
     users[user_id]["used"] += 1
     save_users(users)
 
@@ -163,9 +160,6 @@ async def send_question(message, subject):
     data = parse_question(raw)
 
     await msg.delete()
-
-async def send_question(message, subject):
-    user_id = str(message.from_user.id)
 
     clean_text = re.sub(r"Ответ:.*", "", data["text"], flags=re.DOTALL)
     clean_text = re.sub(r"Объяснение:.*", "", clean_text, flags=re.DOTALL)
@@ -214,7 +208,14 @@ async def back(message: types.Message):
 # ===== PAYMENT =====
 @dp.message_handler(lambda m: m.text == "💳 Оплата")
 async def pay(message: types.Message):
-    await message.answer("💳 Оплата:\n7 дней — 5000₸\n30 дней — 10000₸\n\nНажми 'Я оплатил'")
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("Я оплатил")
+    kb.add("⬅️ Назад")
+
+    await message.answer(
+        "💳 Оплата:\n7 дней — 5000₸\n30 дней — 10000₸",
+        reply_markup=kb
+    )
 
 @dp.message_handler(lambda m: m.text == "Я оплатил")
 async def paid(message: types.Message):
