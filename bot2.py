@@ -158,15 +158,31 @@ async def top(message: types.Message):
 @dp.message_handler(lambda message: message.text in [
     "Математика", "Физика", "Биология", "История", "Химия"
 ])
-async def subject_handler(message: types.Message):
-    user_id = message.from_user.id
-
+async def send_question(message, subject):
+    user_id = str(message.from_user.id)
     users = load_users()
-    used = users.get(str(user_id), {}).get("used", 0)
 
-    if used >= FREE_LIMIT and not has_access(user_id):
-        await message.answer("🔒 Лимит достигнут\n💳 Оплатите доступ")
+    users.setdefault(user_id, {"used": 0})
+
+    # проверка лимита
+    if users[user_id]["used"] >= 10:
+        await message.answer("💳 Лимит закончился. Оплати доступ.")
         return
+
+    # увеличиваем
+    users[user_id]["used"] += 1
+    save_users(users)
+
+    # дальше генерация вопроса
+    raw = await generate_question(subject)
+    data = parse_question(raw)
+
+    user_data[user_id] = {
+        "correct": data["correct"],
+        "explanation": data["explanation"]
+    }
+
+    await message.answer(data["text"], reply_markup=answer_kb())
 
     subject = message.text
 
