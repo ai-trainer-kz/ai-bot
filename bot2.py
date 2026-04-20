@@ -1,174 +1,221 @@
 import os
 import json
+import random
+import re
 from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils import executor
+
 from openai import OpenAI
 
-# ========= CONFIG =========
+# ===== CONFIG =====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-ADMINS = [8398266271]
-
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
+
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-user_state = {}
+ADMINS = [123456789]  # <-- вставь свой ID
 
-FREE_LIMIT = 10
+USERS_FILE = "users.json"
+user_data = {}
 
-# ========= DB =========
-if not os.path.exists("users.json"):
-    with open("users.json", "w") as f:
-        json.dump({}, f)
-
+# ===== USERS =====
 def load_users():
-    with open("users.json", "r") as f:
+    if not os.path.exists(USERS_FILE):
+        return {}
+    with open(USERS_FILE, "r") as f:
         return json.load(f)
 
-def save_users(data):
-    with open("users.json", "w") as f:
-        json.dump(data, f, indent=4)
+def save_users(users):
+    with open(USERS_FILE, "w") as f:
+        json.dump(users, f, indent=2)
 
-def has_access(user_id):
-    users = load_users()
-    expire = users.get(str(user_id), {}).get("expire")
+# ===== KEYBOARDS =====
+def main_menu():
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("📚 Предметы", "📊 Статистика")
+    kb.add("🏆 Топ", "💳 Оплата")
+    return kb
 
-    if not expire:
-        return False
+def subjects_kb():
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("Математика", "Физика")
+    kb.add("Биология", "Химия")
+    kb.add("История")
+    kb.add("⬅️ Назад")
+    return kb
 
-    expire_date = datetime.strptime(expire, "%Y-%m-%d")
-    return datetime.now() <= expire_date
-
-# ========= AI =========
-async def generate_question(subject):
-    prompt = f"""
-Ты AI-тренер для ЕНТ.
-
-Сгенерируй 1 вопрос по предмету {subject}.
-
-Формат строго:
-Q: ...
-A) ...
-B) ...
-C) ...
-D) ...
-ANSWER: A
-EXPLAIN: ...
-"""
-
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=1
-    )
-
-    return response.choices[0].message.content
-
-
-def parse_question(text):
-    lines = text.split("\n")
-
-    q, options, answer, explain = "", [], "", ""
-
-    for line in lines:
-        line = line.strip()
-
-        if line.startswith("Q:"):
-            q = line.replace("Q:", "").strip()
-        elif line.startswith(("A)", "B)", "C)", "D)")):
-            options.append(line)
-        elif line.startswith("ANSWER:"):
-            answer = line.replace("ANSWER:", "").strip()
-        elif line.startswith("EXPLAIN:"):
-            explain = line.replace("EXPLAIN:", "").strip()
-
-    return q, options, answer, explain
-
-# ========= KEYBOARD =========
-def answer_kb():
+def answers_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("A", "B")
     kb.add("C", "D")
     kb.add("⬅️ Назад")
     return kb
 
-# ========= SUBJECT =========
-@dp.message_handler(lambda m: m.text in ["Математика", "Физика", "Биология", "История", "Химия"])
-async def subject_handler(message: types.Message):
+# ===== AI =====
+async def generate_question(subject):
+    prompt = f"""
+Ты генератор тестов для ЕНТ.
 
-    user_id = str(message.from_user.id)
-    subject = message.text
+Предмет: {subject}
 
-    users = load_users()
-    users.setdefault(user_id, {"used": 0})
+Сделай 1 вопрос.
 
-    if users[user_id]["used"] >= FREE_LIMIT and not has_access(user_id):
-        await message.answer("🔒 Лимит достигнут\n💳 Оплатите доступ")
-        return
+Формат строго:
+Вопрос: ...
+A) ...
+B) ...
+C) ...
+D) ...
+Ответ: A/B/C/D
+Объяснение: ...
+"""
 
-    await message.answer("⏳ Генерирую вопрос...")
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
 
-    text = await generate_question(subject)
-    q, options, answer, explain = parse_question(text)
+    return response.choices[0].message.content
 
-    if not q or len(options) < 4:
-        await message.answer("⚠️ Ошибка генерации, попробуй ещё раз")
-        return
+def parse_question(text):
+    correct = re.search(r"Ответ:\s*([A-D])", text)
+    explanation = re.search(r"Объяснение:\s*(.*)", text)
 
-    user_state[user_id] = {
-        "answer": answer,
-        "explain": explain,
-        "subject": subject
+    return {
+        "text": text,
+        "correct": correct.group(1) if correct else "A",
+        "explanation": explanation.group(1) if explanation else ""
     }
 
-    await message.answer(q + "\n\n" + "\n".join(options), reply_markup=answer_kb())
+# ===== START =====
+@dp.message_handler(commands=['start'])
+async def start(message: types.Message):
+    await message.answer("👋 Добро пожаловать!", reply_markup=main_menu())
 
-# ========= ANSWER =========
-@dp.message_handler(lambda m: m.text in ["A", "B", "C", "D"])
-async def check_answer(message: types.Message):
+# ===== SUBJECTS =====
+@dp.message_handler(lambda m: m.text == "📚 Предметы")
+async def subjects(message: types.Message):
+    await message.answer("Выбери предмет", reply_markup=subjects_kb())
 
+@dp.message_handler(lambda m: m.text in ["Математика", "Физика", "Биология", "Химия", "История"])
+async def subject_handler(message: types.Message):
+    await send_question(message, message.text)
+
+# ===== QUESTION =====
+async def send_question(message, subject):
     user_id = str(message.from_user.id)
-
-    if user_id not in user_state:
-        await message.answer("Сначала выбери предмет")
-        return
-
-    correct = user_state[user_id]["answer"]
-    explain = user_state[user_id]["explain"]
-    subject = user_state[user_id]["subject"]
-
-    if message.text == correct:
-        await message.answer(f"✅ Правильно!\n\n📖 {explain}")
-    else:
-        await message.answer(f"❌ Неправильно\nОтвет: {correct}\n\n📖 {explain}")
-
     users = load_users()
-    users.setdefault(user_id, {"used": 0})
+
+    users.setdefault(user_id, {"used": 0, "expire": ""})
+
+    # проверка подписки
+    if users[user_id]["expire"]:
+        expire_date = datetime.strptime(users[user_id]["expire"], "%Y-%m-%d")
+        if expire_date > datetime.now():
+            pass
+        else:
+            users[user_id]["expire"] = ""
+
+    # лимит
+    if not users[user_id]["expire"]:
+        if users[user_id]["used"] >= 10:
+            await message.answer("💳 Лимит закончился. Оплати доступ.")
+            return
+
+    # увеличиваем счётчик
     users[user_id]["used"] += 1
     save_users(users)
 
-    if users[user_id]["used"] >= FREE_LIMIT and not has_access(user_id):
-        await message.answer("🔒 Лимит достигнут\n💳 Оплатите доступ")
-        return
+    msg = await message.answer("⏳ Генерирую вопрос...")
 
-    await message.answer("⏳ Следующий вопрос...")
+    raw = await generate_question(subject)
+    data = parse_question(raw)
 
-    text = await generate_question(subject)
-    q, options, answer, explain = parse_question(text)
-
-    user_state[user_id] = {
-        "answer": answer,
-        "explain": explain,
+    user_data[user_id] = {
+        "correct": data["correct"],
+        "explanation": data["explanation"],
         "subject": subject
     }
 
-    await message.answer(q + "\n\n" + "\n".join(options), reply_markup=answer_kb())
+    await msg.delete()
+    await message.answer(data["text"], reply_markup=answers_kb())
 
-# ========= RUN =========
+# ===== ANSWER =====
+@dp.message_handler(lambda m: m.text in ["A", "B", "C", "D"])
+async def check_answer(message: types.Message):
+    user_id = str(message.from_user.id)
+    answer = message.text
+
+    data = user_data.get(user_id, {})
+    correct = data.get("correct")
+    explanation = data.get("explanation", "")
+    subject = data.get("subject")
+
+    if answer == correct:
+        await message.answer("✅ Правильно!")
+    else:
+        await message.answer(f"❌ Неправильно\nПравильный ответ: {correct}")
+
+    if explanation:
+        await message.answer(f"📖 {explanation}")
+
+    await send_question(message, subject)
+
+# ===== BACK =====
+@dp.message_handler(lambda m: m.text == "⬅️ Назад")
+async def back(message: types.Message):
+    await message.answer("Меню", reply_markup=main_menu())
+
+# ===== PAYMENT =====
+@dp.message_handler(lambda m: m.text == "💳 Оплата")
+async def pay(message: types.Message):
+    await message.answer("💳 Оплата:\n7 дней — 5000₸\n30 дней — 10000₸\n\nНажми 'Я оплатил'")
+
+@dp.message_handler(lambda m: m.text == "Я оплатил")
+async def paid(message: types.Message):
+    user = message.from_user
+
+    kb = InlineKeyboardMarkup()
+    kb.add(
+        InlineKeyboardButton("7 дней", callback_data=f"give_7_{user.id}"),
+        InlineKeyboardButton("30 дней", callback_data=f"give_30_{user.id}")
+    )
+    kb.add(InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{user.id}"))
+
+    text = f"💰 Заявка\nID: {user.id}\nИмя: {user.first_name}"
+
+    for admin in ADMINS:
+        await bot.send_message(admin, text, reply_markup=kb)
+
+    await message.answer("✅ Заявка отправлена")
+
+# ===== ADMIN =====
+@dp.callback_query_handler(lambda c: c.data.startswith(("give_", "deny_")))
+async def process_callback(callback_query: types.CallbackQuery):
+    data = callback_query.data
+    user_id = int(data.split("_")[-1])
+
+    if data.startswith("deny"):
+        await bot.send_message(user_id, "❌ Платеж отклонён")
+        return
+
+    days = 7 if "7" in data else 30
+
+    users = load_users()
+    expire = datetime.now() + timedelta(days=days)
+
+    users.setdefault(str(user_id), {})
+    users[str(user_id)]["expire"] = expire.strftime("%Y-%m-%d")
+    save_users(users)
+
+    await bot.send_message(user_id, f"✅ Доступ выдан на {days} дней")
+
+# ===== RUN =====
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
