@@ -1,6 +1,13 @@
 import os
 import json
 import re
+
+def clean_text(text):
+    text = re.sub(r"\\\(|\\\)", "", text)
+    text = re.sub(r"\\frac\{(.*?)\}\{(.*?)\}", r"\1/\2", text)
+    text = text.replace("\\", "")
+    return text
+    
 from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, types
@@ -114,10 +121,33 @@ def parse_question(text):
 async def start(message: types.Message):
     await message.answer("👋 Добро пожаловать!", reply_markup=main_menu())
 
-# ===== SUBJECTS =====
+# ===== MENU =====
 @dp.message_handler(lambda m: m.text == "📚 Предметы")
 async def subjects(message: types.Message):
     await message.answer("Выбери предмет", reply_markup=subjects_kb())
+
+@dp.message_handler(lambda m: m.text == "📊 Статистика")
+async def stats(message: types.Message):
+    users = load_users()
+    user_id = str(message.from_user.id)
+
+    if user_id not in users:
+        await message.answer("Нет данных")
+        return
+
+    correct = users[user_id]["correct"]
+    wrong = users[user_id]["wrong"]
+    total = correct + wrong
+
+    accuracy = round((correct / total) * 100, 1) if total > 0 else 0
+
+    await message.answer(
+        f"📊 Твоя статистика:\n\n"
+        f"✅ Правильно: {correct}\n"
+        f"❌ Ошибки: {wrong}\n"
+        f"📚 Всего: {total}\n"
+        f"🎯 Точность: {accuracy}%"
+    )
 
 @dp.message_handler(lambda m: m.text and m.text.strip().lower() in ["математика", "физика", "биология", "химия", "история"])
 async def subject_handler(message: types.Message):
@@ -167,32 +197,48 @@ async def send_question(message, subject):
 @dp.message_handler(lambda m: m.text in ["A", "B", "C", "D"])
 async def check_answer(message: types.Message):
     user_id = str(message.from_user.id)
-    answer = message.text
+    user_answer = message.text.upper()
 
     data = user_data.get(user_id, {})
     correct = data.get("correct")
-
     question = data.get("question", "")
     explanation = data.get("explanation", "")
 
-    # если нет объяснения — генерим один раз
+    # если нет объяснения — генерим
     if not explanation:
-        explanation = await generate_explanation(question)
+        explanation = await generate_explanation(question, correct)
         if not explanation:
-            explanation = "📖 Объяснение временно недоступно"
+            explanation = "📄 Объяснение временно недоступно"
 
-    if answer == correct:
+    # очищаем текст
+    explanation = clean_text(explanation)
+
+    # ===== СТАТИСТИКА =====
+    users = load_users()
+
+    users.setdefault(user_id, {
+        "name": message.from_user.full_name,
+        "correct": 0,
+        "wrong": 0
+    })
+
+    # ===== ПРОВЕРКА ОТВЕТА =====
+    if user_answer == correct:
         await message.answer("✅ Правильно!")
+        users[user_id]["correct"] += 1
     else:
         await message.answer(f"❌ Неправильно\nПравильный ответ: {correct}")
+        users[user_id]["wrong"] += 1
 
-    # ✅ ВСЕГДА одно объяснение и один правильный ответ
+    save_users(users)
+
+    # ===== ОБЪЯСНЕНИЕ =====
     await message.answer(
         f"📖 {explanation}\n\nПравильный ответ: {correct}"
     )
 
+    # следующий вопрос
     await send_question(message, data.get("subject", "Математика"))
-
 # ===== BACK =====
 @dp.message_handler(lambda m: m.text == "⬅️ Назад")
 async def back(message: types.Message):
