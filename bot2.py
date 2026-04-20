@@ -60,21 +60,25 @@ def answers_kb():
 # ===== AI =====
 async def generate_question(subject):
     prompt = f"""
-Ты генератор тестов для ЕНТ.
-
-Предмет: {subject}
-
-Сделай 1 вопрос.
-
-Формат строго:
-Вопрос: ...
-A) ...
-B) ...
-C) ...
-D) ...
-Ответ: A/B/C/D
-Объяснение: ...
-"""
+    Ты генератор тестов для ЕНТ.
+    
+    Предмет: {subject}
+    
+    Сгенерируй 1 вопрос.
+    
+    ВАЖНО:
+    - НЕ показывай ответ в тексте вопроса
+    - НЕ показывай объяснение в тексте вопроса
+    
+    Формат:
+    Вопрос: ...
+    A) ...
+    B) ...
+    C) ...
+    D) ...
+    Ответ: A/B/C/D
+    Объяснение: ...
+    """
 
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
@@ -144,7 +148,11 @@ async def send_question(message, subject):
     }
 
     await msg.delete()
-    await message.answer(data["text"], reply_markup=answers_kb())
+    clean_text = re.sub(r"Ответ:.*", "", data["text"], flags=re.DOTALL)
+    clean_text = re.sub(r"Объяснение:.*", "", clean_text, flags=re.DOTALL)
+    clean_text = clean_text.replace("\\(", "").replace("\\)", "")
+    
+    await message.answer(clean_text.strip(), reply_markup=answers_kb())
 
 # ===== ANSWER =====
 @dp.message_handler(lambda m: m.text in ["A", "B", "C", "D"])
