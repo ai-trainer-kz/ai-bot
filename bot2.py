@@ -198,7 +198,7 @@ async def back(message: types.Message):
 @dp.message_handler(lambda m: m.text == "💳 Оплата")
 async def payment(message: types.Message):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("Я оплатил")
+    kb.add("✅ Я оплатил")
     kb.add("⬅️ Назад")
 
     await message.answer(
