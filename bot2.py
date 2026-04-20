@@ -7,7 +7,7 @@ def clean_text(text):
     text = re.sub(r"\\frac\{(.*?)\}\{(.*?)\}", r"\1/\2", text)
     text = text.replace("\\", "")
     return text
-    
+
 from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, types
@@ -34,12 +34,12 @@ user_data = {}
 def load_users():
     if not os.path.exists(USERS_FILE):
         return {}
-    with open(USERS_FILE, "r") as f:
+    with open(USERS_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
 def save_users(users):
-    with open(USERS_FILE, "w") as f:
-        json.dump(users, f, indent=2)
+    with open(USERS_FILE, "w", encoding="utf-8") as f:
+        json.dump(users, f, ensure_ascii=False, indent=4)
 
 # ===== KEYBOARDS =====
 def main_menu():
@@ -66,13 +66,11 @@ def answers_kb():
 # ===== AI =====
 async def generate_question(subject):
     prompt = f"""
-Ты строгий генератор тестов для ЕНТ.
+Ты генератор тестов ЕНТ.
 
 Предмет: {subject}
 
-Сгенерируй 1 вопрос.
-
-Формат строго:
+Формат:
 Вопрос: ...
 A) ...
 B) ...
@@ -81,25 +79,21 @@ D) ...
 Ответ: A/B/C/D
 Объяснение: ...
 """
-
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[{"role": "user", "content": prompt}]
     )
-
     return response.choices[0].message.content
 
-async def generate_explanation(question):
+async def generate_explanation(question, correct):
     prompt = f"""
 Объясни решение задачи.
 
 Вопрос:
 {question}
 
-Дай краткое и понятное объяснение.
-НЕ указывай букву ответа.
+Не указывай букву ответа.
 """
-
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[{"role": "user", "content": prompt}]
@@ -111,9 +105,9 @@ def parse_question(text):
     explanation = re.search(r"Объяснение:\s*(.*)", text)
 
     return {
-        "text": text,
+        "text": clean_text(text),
         "correct": correct.group(1) if correct else None,
-        "explanation": explanation.group(1) if explanation else ""
+        "explanation": clean_text(explanation.group(1)) if explanation else ""
     }
 
 # ===== START =====
@@ -135,8 +129,8 @@ async def stats(message: types.Message):
         await message.answer("Нет данных")
         return
 
-    correct = users[user_id]["correct"]
-    wrong = users[user_id]["wrong"]
+    correct = users[user_id].get("correct", 0)
+    wrong = users[user_id].get("wrong", 0)
     total = correct + wrong
 
     accuracy = round((correct / total) * 100, 1) if total > 0 else 0
@@ -149,7 +143,28 @@ async def stats(message: types.Message):
         f"🎯 Точность: {accuracy}%"
     )
 
-@dp.message_handler(lambda m: m.text and m.text.strip().lower() in ["математика", "физика", "биология", "химия", "история"])
+@dp.message_handler(lambda m: m.text == "🏆 Топ")
+async def top_users(message: types.Message):
+    users = load_users()
+
+    rating = []
+    for u in users.values():
+        c = u.get("correct", 0)
+        w = u.get("wrong", 0)
+        total = c + w
+        if total == 0:
+            continue
+        rating.append((u.get("name", "User"), c, c / total))
+
+    rating.sort(key=lambda x: x[2], reverse=True)
+
+    text = "🏆 Топ:\n\n"
+    for i, (name, c, acc) in enumerate(rating[:10], 1):
+        text += f"{i}. {name} — {c} ({round(acc*100)}%)\n"
+
+    await message.answer(text)
+
+@dp.message_handler(lambda m: m.text and m.text.strip().lower() in ["математика","физика","биология","химия","история"])
 async def subject_handler(message: types.Message):
     await send_question(message, message.text)
 
@@ -158,73 +173,68 @@ async def send_question(message, subject):
     user_id = str(message.from_user.id)
     users = load_users()
 
-    users.setdefault(user_id, {"used": 0, "expire": ""})
-
-    if users[user_id]["expire"]:
-        expire_date = datetime.strptime(users[user_id]["expire"], "%Y-%m-%d")
-        if expire_date <= datetime.now():
-            users[user_id]["expire"] = ""
+    users.setdefault(user_id, {
+        "used": 0,
+        "expire": "",
+        "correct": 0,
+        "wrong": 0,
+        "name": message.from_user.full_name
+    })
 
     if not users[user_id]["expire"]:
         if users[user_id]["used"] >= 10:
-            await message.answer("💳 Лимит закончился. Оплати доступ.")
+            await message.answer("💳 Лимит закончился")
             return
 
     users[user_id]["used"] += 1
     save_users(users)
 
-    msg = await message.answer("⏳ Генерирую вопрос...")
+    msg = await message.answer("⏳ Генерирую...")
 
     raw = await generate_question(subject)
     data = parse_question(raw)
 
     await msg.delete()
 
-    clean_text = re.sub(r"Ответ:.*", "", data["text"], flags=re.DOTALL)
-    clean_text = re.sub(r"Объяснение:.*", "", clean_text, flags=re.DOTALL)
-    clean_text = clean_text.replace("\\(", "").replace("\\)", "")
+    question_text = re.sub(r"Ответ:.*", "", data["text"], flags=re.DOTALL)
+    question_text = re.sub(r"Объяснение:.*", "", question_text, flags=re.DOTALL)
 
     user_data[user_id] = {
         "correct": data["correct"],
         "explanation": data["explanation"],
-        "question": clean_text,
+        "question": question_text,
         "subject": subject
     }
 
-    await message.answer(clean_text.strip(), reply_markup=answers_kb())
+    await message.answer(question_text.strip(), reply_markup=answers_kb())
 
 # ===== ANSWER =====
-@dp.message_handler(lambda m: m.text in ["A", "B", "C", "D"])
+@dp.message_handler(lambda m: m.text in ["A","B","C","D"])
 async def check_answer(message: types.Message):
     user_id = str(message.from_user.id)
     user_answer = message.text.upper()
 
     data = user_data.get(user_id, {})
     correct = data.get("correct")
-    question = data.get("question", "")
-    explanation = data.get("explanation", "")
+    question = data.get("question")
+    explanation = data.get("explanation")
 
-    # если нет объяснения — генерим
     if not explanation:
         explanation = await generate_explanation(question, correct)
-        if not explanation:
-            explanation = "📄 Объяснение временно недоступно"
 
-    # очищаем текст
     explanation = clean_text(explanation)
 
-    # ===== СТАТИСТИКА =====
     users = load_users()
-
     users.setdefault(user_id, {
-        "name": message.from_user.full_name,
+        "used": 0,
+        "expire": "",
         "correct": 0,
-        "wrong": 0
+        "wrong": 0,
+        "name": message.from_user.full_name
     })
 
-    # ===== ПРОВЕРКА ОТВЕТА =====
     if user_answer == correct:
-        await message.answer("✅ Правильно!")
+        await message.answer("✅ Правильно")
         users[user_id]["correct"] += 1
     else:
         await message.answer(f"❌ Неправильно\nПравильный ответ: {correct}")
@@ -232,13 +242,10 @@ async def check_answer(message: types.Message):
 
     save_users(users)
 
-    # ===== ОБЪЯСНЕНИЕ =====
-    await message.answer(
-        f"📖 {explanation}\n\nПравильный ответ: {correct}"
-    )
+    await message.answer(f"📖 {explanation}\n\nПравильный ответ: {correct}")
 
-    # следующий вопрос
     await send_question(message, data.get("subject", "Математика"))
+
 # ===== BACK =====
 @dp.message_handler(lambda m: m.text == "⬅️ Назад")
 async def back(message: types.Message):
@@ -252,58 +259,37 @@ async def payment(message: types.Message):
     kb.add("⬅️ Назад")
 
     await message.answer(
-        "💳 Оплата:\n\n"
-        "7 дней — 5000₸\n"
-        "30 дней — 10000₸\n\n"
-        "Kaspi: 4400430352720152\n"
-        "Имя: Bauyrzhan\n\n"
-        "После оплаты нажми кнопку ниже",
+        "💳 Оплата:\n\n7 дней — 5000₸\n30 дней — 10000₸\nKaspi: 4400430352720152\nИмя: Bauyrzhan",
         reply_markup=kb
     )
 
 @dp.message_handler(lambda m: m.text.lower() == "✅ я оплатил")
 async def paid(message: types.Message):
     user_id = message.from_user.id
-    username = message.from_user.username or "-"
     name = message.from_user.full_name
 
     kb = InlineKeyboardMarkup()
     kb.add(
-        InlineKeyboardButton("✅ 7 дней", callback_data=f"give_7_{user_id}"),
-        InlineKeyboardButton("✅ 30 дней", callback_data=f"give_30_{user_id}")
-    )
-    kb.add(InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{user_id}"))
-
-    text = (
-        f"💰 Новая оплата!\n\n"
-        f"👤 {name}\n"
-        f"📩 @{username}\n"
-        f"🆔 {user_id}"
+        InlineKeyboardButton("7 дней", callback_data=f"give_7_{user_id}"),
+        InlineKeyboardButton("30 дней", callback_data=f"give_30_{user_id}")
     )
 
-    await bot.send_message(ADMIN_ID, text, reply_markup=kb)
-    await message.answer("✅ Заявка отправлена админу")
+    await bot.send_message(ADMIN_ID, f"Оплата от {name} {user_id}", reply_markup=kb)
 
-# ===== ADMIN =====
-@dp.callback_query_handler(lambda c: c.data.startswith(("give_", "deny_")))
-async def process_callback(callback_query: types.CallbackQuery):
-    data = callback_query.data
-    user_id = int(data.split("_")[-1])
-
-    if data.startswith("deny"):
-        await bot.send_message(user_id, "❌ Платеж отклонён")
-        return
-
-    days = 7 if "7" in data else 30
+@dp.callback_query_handler(lambda c: c.data.startswith("give_"))
+async def give_access(callback_query: types.CallbackQuery):
+    user_id = int(callback_query.data.split("_")[-1])
+    days = 7 if "7" in callback_query.data else 30
 
     users = load_users()
-    expire = datetime.now() + timedelta(days=days)
-
     users.setdefault(str(user_id), {})
+
+    expire = datetime.now() + timedelta(days=days)
     users[str(user_id)]["expire"] = expire.strftime("%Y-%m-%d")
+
     save_users(users)
 
-    await bot.send_message(user_id, f"✅ Доступ выдан на {days} дней")
+    await bot.send_message(user_id, f"✅ Доступ на {days} дней")
 
 # ===== RUN =====
 if __name__ == "__main__":
