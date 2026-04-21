@@ -108,18 +108,40 @@ async def subjects(message: types.Message):
         reply_markup=subjects_kb(message.from_user.id)
     )
 
-@dp.message_handler(lambda m: m.text in ["Математика","Физика","Биология","Химия","История","Тарих"])
-async def subject(message: types.Message):
-    user_data[str(message.from_user.id)] = {"subject": message.text}
-    await message.answer("Выбери сложность", reply_markup=difficulty_kb(message.from_user.id))
+@dp.message_handler(lambda m: m.text.lower() in ["математика","физика","биология","химия","история","тарих"])
+async def subject_handler(message: types.Message):
+    user_id = str(message.from_user.id)
 
-@dp.message_handler(lambda m: m.text in ["🟢 Легкий","🔴 Сложный"])
-async def difficulty(message: types.Message):
-    uid = str(message.from_user.id)
-    user_data.setdefault(uid, {})
-    user_data[uid]["level"] = "easy" if "Легкий" in message.text else "hard"
+    user_data.setdefault(user_id, {})
+    user_data[user_id]["subject"] = message.text
 
-    await send_question(message, user_data[uid].get("subject","Математика"))
+    await message.answer("Выбери сложность")
+
+@dp.message_handler(lambda m: m.text in ["🟢 Легкий", "🔴 Сложный"])
+async def difficulty_handler(message: types.Message):
+    user_id = str(message.from_user.id)
+
+    users = load_users()
+    users.setdefault(user_id, {})
+
+    # сохраняем уровень
+    if "Легкий" in message.text:
+        users[user_id]["level"] = "easy"
+    else:
+        users[user_id]["level"] = "hard"
+
+    save_users(users)
+
+    # 🔥 БЕРЁМ ПРЕДМЕТ
+    subject = user_data.get(user_id, {}).get("subject")
+
+    if not subject:
+        subject = "Математика"
+
+    await message.answer("🚀 Начинаем тест...")
+
+    # 🔥 ВОТ ГЛАВНОЕ
+    await send_question(message, subject)
 
 # ===== AI =====
 async def generate_question(subject, lang, level):
