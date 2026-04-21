@@ -17,7 +17,6 @@ dp = Dispatcher(bot)
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 ADMIN_ID = 8398266271
-
 USERS_FILE = "users.json"
 
 user_data = {}
@@ -136,50 +135,19 @@ async def difficulty(message: types.Message):
 
 # ===== AI =====
 async def generate_question(subject, lang, level):
-    level_text = "легкий" if level=="easy" else "сложный"
-    language = "на русском языке" if lang=="ru" else "қазақ тілінде"
+    prompt = f"Сгенерируй тест ЕНТ по {subject}"
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message.content
 
-    prompt = f"""
-Сгенерируй ОДИН тест ЕНТ {language}
-
-Предмет: {subject}
-
-СТРОГО БЕЗ ЛИШНЕГО ТЕКСТА
-
-Вопрос: ...
-A) ...
-B) ...
-C) ...
-D) ...
-Ответ: A
-Объяснение: ...
-"""
-
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",  # 🔥 ВАЖНО (замена)
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response.choices[0].message.content
-
-    except Exception as e:
-        print("ERROR GPT:", e)  # 👈 увидишь ошибку в консоли
-        return """Вопрос: 2+2=?
-A) 3
-B) 4
-C) 5
-D) 6
-Ответ: B
-Объяснение: 2+2=4"""
-        
 def parse_question(text):
     correct = re.search(r"Ответ:\s*([A-D])", text)
-    explanation = re.search(r"Объяснение:\s*([\s\S]*)", text)
-
     return {
         "text": clean_text(text),
         "correct": correct.group(1) if correct else "A",
-        "explanation": clean_text(explanation.group(1)) if explanation else ""
+        "explanation": ""
     }
         
 # ===== QUESTION =====
