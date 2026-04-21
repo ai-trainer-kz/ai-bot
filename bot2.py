@@ -142,22 +142,25 @@ async def generate_question(subject, lang, level):
 
 Предмет: {subject}
 
-Формат:
+Формат строго:
 Вопрос: ...
 A) ...
 B) ...
 C) ...
 D) ...
-Ответ: A/B/C/D
+Ответ: A
 Объяснение: ...
 """
+
     try:
-        r = client.chat.completions.create(
-            model="gpt-4.1-mini",
-            messages=[{"role":"user","content":prompt}]
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # 🔥 ВАЖНО (замена)
+            messages=[{"role": "user", "content": prompt}]
         )
-        return r.choices[0].message.content
-    except:
+        return response.choices[0].message.content
+
+    except Exception as e:
+        print("ERROR GPT:", e)  # 👈 увидишь ошибку в консоли
         return """Вопрос: 2+2=?
 A) 3
 B) 4
@@ -165,7 +168,7 @@ C) 5
 D) 6
 Ответ: B
 Объяснение: 2+2=4"""
-
+        
 def parse_question(text):
     correct = re.search(r"Ответ:\s*([A-D])", text)
     explanation = re.search(r"Объяснение:\s*(.*)", text)
