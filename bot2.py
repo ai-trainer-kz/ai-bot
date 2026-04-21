@@ -279,7 +279,7 @@ async def answer(message: types.Message):
     await send_question(message, subject)
 
 # ===== ТРЕНАЖЁР =====
-@dp.message_handler(lambda m: m.text == "🧠 Тренажёр")
+@dp.message_handler(lambda m: m.text == "🔁 Тренажёр")
 async def trainer(message: types.Message):
     uid = str(message.from_user.id)
     session = get_user_session(uid)
@@ -291,12 +291,12 @@ async def trainer(message: types.Message):
     mistake = session["mistakes"][-1]
 
     user_data[uid] = {
-    "question": mistake["question"],
-    "correct": mistake["correct"],
-    "subject": "Тренажёр"
-}
+        "question": mistake["question"],
+        "correct": mistake["correct"],
+        "subject": "Тренажёр"
+    }
 
-await message.answer(mistake["question"], reply_markup=answers_kb())
+    await message.answer(mistake["question"], reply_markup=answers_kb())
 
 # ===== ОБУЧЕНИЕ =====
 @dp.message_handler(lambda m: m.text == "📖 Обучение")
