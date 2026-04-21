@@ -8,11 +8,14 @@ from aiogram.types import ReplyKeyboardMarkup
 from aiogram.utils import executor
 from openai import OpenAI
 
-BOT_TOKEN = "ТВОЙ_ТОКЕН"
-client = OpenAI(api_key="ТВОЙ_API_KEY")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+ADMIN_ID = 8398266271
 
 # ====== DATA ======
 DATA_FILE = "users.json"
@@ -201,9 +204,56 @@ async def answer_handler(message: types.Message):
     await send_question(message, subject)
 
 # ====== BACK ======
-@dp.message_handler(lambda m: m.text == "⬅️ Назад")
-async def back(message: types.Message):
-    await message.answer("Меню", reply_markup=main_menu(message.from_user.id))
+@dp.message_handler(lambda m: m.text == "💳 Оплата")
+async def pay(message: types.Message):
+    kb=ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("✅ Я оплатил"); kb.add("⬅️ Назад")
+    await message.answer("Kaspi: 4400430352720152", reply_markup=kb)
+
+@dp.message_handler(lambda m: m.text == "💳 Оплата")
+async def pay(message: types.Message):
+    kb=ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("✅ Я оплатил"); kb.add("⬅️ Назад")
+    await message.answer("Kaspi: 4400430352720152", reply_markup=kb)
+
+@dp.message_handler(lambda m: "оплатил" in m.text.lower())
+async def paid(message: types.Message):
+    u=message.from_user
+
+    kb=InlineKeyboardMarkup()
+    kb.add(
+        InlineKeyboardButton("✅ 7 дней", callback_data=f"give_7_{u.id}"),
+        InlineKeyboardButton("✅ 30 дней", callback_data=f"give_30_{u.id}")
+    )
+    kb.add(InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{u.id}"))
+
+    await bot.send_message(
+        ADMIN_ID,
+        f"💰 Новая оплата!\n\n👤 {u.full_name}\n📩 @{u.username}\n🆔 {u.id}",
+        reply_markup=kb
+    )
+
+@dp.callback_query_handler(lambda c: c.data.startswith("give_"))
+async def give(callback_query: types.CallbackQuery):
+    uid=int(callback_query.data.split("_")[-1])
+    days=7 if "7" in callback_query.data else 30
+
+    users=load_users()
+    users.setdefault(str(uid),{})
+
+    expire=datetime.now()+timedelta(days=days)
+    users[str(uid)]["expire"]=expire.strftime("%Y-%m-%d")
+    users[str(uid)]["used"]=0  # 🔥 сброс лимита
+
+    save_users(users)
+
+    await bot.send_message(uid,f"✅ Доступ на {days} дней")
+
+@dp.callback_query_handler(lambda c: c.data.startswith("deny_"))
+async def deny(callback_query: types.CallbackQuery):
+    uid=int(callback_query.data.split("_")[-1])
+    await bot.send_message(uid,"❌ Оплата отклонена")
+
 
 # ====== RUN ======
 if __name__ == "__main__":
