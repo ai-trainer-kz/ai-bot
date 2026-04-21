@@ -22,6 +22,18 @@ ADMIN_ID = 8398266271
 USERS_FILE = "users.json"
 user_data = {}
 
+used_questions = {}
+def get_user_session(uid):
+    uid = str(uid)
+    user_results.setdefault(uid, {
+        "correct": 0,
+        "wrong": 0,
+        "mistakes": [],
+        "total": 0,
+        "mode": "normal"
+    })
+    return user_results[uid]
+
 # ===== UTILS =====
 def clean_text(text):
     text = re.sub(r"\\\(|\\\)", "", text)
