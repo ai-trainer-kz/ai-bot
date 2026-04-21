@@ -330,11 +330,11 @@ kb.add(
     InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{u.id}")
 )
 
-    await bot.send_message(
-        ADMIN_ID,
-        f"💰 Оплата\n{u.full_name}\n@{u.username}\n{u.id}",
-        reply_markup=kb
-    )
+await bot.send_message(
+    ADMIN_ID,
+    f"💰 Оплата\n{u.full_name}\n@{u.username}\n{u.id}",
+    reply_markup=kb
+)
 
 @dp.callback_query_handler(lambda c: c.data.startswith("give_"))
 async def give(callback_query: types.CallbackQuery):
