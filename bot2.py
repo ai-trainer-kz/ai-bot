@@ -1,66 +1,41 @@
 import os
 import json
-import re
 import asyncio
 from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup
 from aiogram.utils import executor
 from openai import OpenAI
 
-# ===== CONFIG =====
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+BOT_TOKEN = "ТВОЙ_ТОКЕН"
+client = OpenAI(api_key="ТВОЙ_API_KEY")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
-client = OpenAI(api_key=OPENAI_API_KEY)
 
-ADMIN_ID = 8398266271
-
-USERS_FILE = "users.json"
-user_data = {}
-
-# ===== CACHE (ускорение) =====
-question_cache = {}
-
-# ===== UTILS =====
-def clean_text(text):
-    text = re.sub(r"\\\(|\\\)", "", text)
-    text = re.sub(r"\\frac\{(.*?)\}\{(.*?)\}", r"\1/\2", text)
-    text = text.replace("\\", "")
-    return text
+# ====== DATA ======
+DATA_FILE = "users.json"
 
 def load_users():
-    if not os.path.exists(USERS_FILE):
+    if not os.path.exists(DATA_FILE):
         return {}
-    with open(USERS_FILE, "r", encoding="utf-8") as f:
+    with open(DATA_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def save_users(users):
-    with open(USERS_FILE, "w", encoding="utf-8") as f:
-        json.dump(users, f, ensure_ascii=False, indent=4)
+def save_users(data):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
-def get_lang(uid):
-    return load_users().get(str(uid), {}).get("lang", "ru")
+user_data = {}
+question_cache = {}
 
-def t(uid, ru, kz):
-    return kz if get_lang(uid) == "kz" else ru
-
-# ===== KEYBOARDS =====
+# ====== KEYBOARDS ======
 def main_menu(uid):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("📚 Предметы", "📊 Статистика")
     kb.add("🏆 Топ", "💳 Оплата")
     kb.add("🌐 Тіл / Язык")
-    return kb
-
-def difficulty_kb(uid):
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("🟢 Легкий", "🟡 Средний")
-    kb.add("🔴 Сложный")
-    kb.add("⬅️ Назад")
     return kb
 
 def subjects_kb(uid):
@@ -71,83 +46,71 @@ def subjects_kb(uid):
     kb.add("⬅️ Назад")
     return kb
 
-def answers_kb():
+def difficulty_kb(uid):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("A","B")
-    kb.add("C","D")
+    kb.add("🟢 Легкий", "🟡 Средний")
+    kb.add("🔴 Сложный")
     kb.add("⬅️ Назад")
     return kb
 
-# ===== START =====
-@dp.message_handler(commands=['start'])
+# ====== START ======
+@dp.message_handler(commands=["start"])
 async def start(message: types.Message):
     await message.answer("👋 Добро пожаловать!", reply_markup=main_menu(message.from_user.id))
 
-# ===== LANGUAGE =====
-@dp.message_handler(lambda m: m.text == "🌐 Тіл / Язык")
-async def lang(message: types.Message):
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("🇷🇺 Русский","🇰🇿 Қазақша")
-    kb.add("⬅️ Назад")
-    await message.answer("Выбери язык / Тілді таңда", reply_markup=kb)
-
-@dp.message_handler(lambda m: m.text in ["🇷🇺 Русский","🇰🇿 Қазақша"])
-async def set_lang(message: types.Message):
-    users = load_users()
-    uid = str(message.from_user.id)
-
-    users.setdefault(uid, {})
-    users[uid]["lang"] = "ru" if "Русский" in message.text else "kz"
-
-    save_users(users)
-    await message.answer("✅ OK", reply_markup=main_menu(message.from_user.id))
-
-# ===== SUBJECT =====
+# ====== SUBJECT ======
 @dp.message_handler(lambda m: m.text == "📚 Предметы")
 async def subjects(message: types.Message):
+    await message.answer("Выбери предмет", reply_markup=subjects_kb(message.from_user.id))
+
+@dp.message_handler(lambda m: m.text.lower() in ["математика","физика","биология","химия","история","тарих"])
+async def subject_handler(message: types.Message):
+    user_id = str(message.from_user.id)
+
+    user_data.setdefault(user_id, {})
+    user_data[user_id]["subject"] = message.text
+
     await message.answer(
-        t(message.from_user.id, "Выбери предмет", "Пәнді таңда"),
-        reply_markup=subjects_kb(message.from_user.id)
+        "Выбери сложность",
+        reply_markup=difficulty_kb(user_id)
     )
 
-@dp.message_handler(lambda m: m.text in ["Математика","Физика","Биология","Химия","История","Тарих"])
-async def subject(message: types.Message):
-    uid = str(message.from_user.id)
-    user_data.setdefault(uid, {})
-    user_data[uid]["subject"] = message.text
+# ====== DIFFICULTY ======
+@dp.message_handler(lambda m: m.text in ["🟢 Легкий", "🟡 Средний", "🔴 Сложный"])
+async def difficulty_handler(message: types.Message):
+    user_id = str(message.from_user.id)
 
-    await message.answer("Выбери сложность", reply_markup=difficulty_kb(message.from_user.id))
-
-# ===== DIFFICULTY =====
-@dp.message_handler(lambda m: m.text in ["🟢 Легкий","🟡 Средний","🔴 Сложный"])
-async def difficulty(message: types.Message):
-    uid = str(message.from_user.id)
-
-    user_data.setdefault(uid, {})
+    users = load_users()
+    users.setdefault(user_id, {})
 
     if "Легкий" in message.text:
-        user_data[uid]["level"] = "easy"
+        users[user_id]["level"] = "easy"
     elif "Средний" in message.text:
-        user_data[uid]["level"] = "medium"
+        users[user_id]["level"] = "medium"
     else:
-        user_data[uid]["level"] = "hard"
+        users[user_id]["level"] = "hard"
+
+    save_users(users)
+
+    subject = user_data.get(user_id, {}).get("subject")
+
+    if not subject:
+        subject = "Математика"
 
     await message.answer("🚀 Начинаем тест...")
-    await send_question(message, user_data[uid].get("subject","Математика"))
 
-# ===== AI =====
-async def generate_question(subject, lang, level):
-    level_map = {
+    await send_question(message, subject)
+
+# ====== AI QUESTION ======
+async def generate_question(subject, level):
+    level_text = {
         "easy": "легкий",
         "medium": "средний",
         "hard": "сложный"
-    }
-
-    level_text = level_map.get(level, "легкий")
-    language = "на русском языке" if lang=="ru" else "қазақ тілінде"
+    }[level]
 
     prompt = f"""
-Сгенерируй {level_text} тест ЕНТ {language}
+Сгенерируй {level_text} тест ЕНТ
 
 Предмет: {subject}
 
@@ -164,11 +127,11 @@ D) ...
     try:
         r = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role":"user","content":prompt}]
+            messages=[{"role": "user", "content": prompt}]
         )
         return r.choices[0].message.content
     except:
-        return """Вопрос: 2+2=?
+        return """Вопрос: 2+2?
 A) 3
 B) 4
 C) 5
@@ -176,104 +139,72 @@ D) 6
 Ответ: B
 Объяснение: 2+2=4"""
 
+# ====== PARSE ======
 def parse_question(text):
-    correct = re.search(r"Ответ:\s*([A-D])", text)
-    explanation = re.search(r"Объяснение:\s*(.*)", text)
+    lines = text.split("\n")
 
-    return {
-        "text": clean_text(text),
-        "correct": correct.group(1) if correct else "A",
-        "explanation": clean_text(explanation.group(1)) if explanation else ""
-    }
+    question = ""
+    options = []
+    correct = ""
+    explanation = ""
 
-# ===== QUESTION =====
+    for line in lines:
+        if line.startswith("Вопрос"):
+            question = line
+        elif line.startswith(("A)", "B)", "C)", "D)")):
+            options.append(line)
+        elif "Ответ" in line:
+            correct = line.split(":")[-1].strip()
+        elif "Объяснение" in line:
+            explanation = line
+
+    return question, options, correct, explanation
+
+# ====== SEND QUESTION ======
 async def send_question(message, subject):
-    uid = str(message.from_user.id)
+    user_id = str(message.from_user.id)
     users = load_users()
 
-    users.setdefault(uid,{
-        "used":0,"expire":"","correct":0,"wrong":0,
-        "name":message.from_user.full_name,"lang":"ru"
-    })
+    level = users.get(user_id, {}).get("level", "easy")
 
-    users[uid]["used"]+=1
-    save_users(users)
+    raw = await generate_question(subject, level)
+    q, opts, correct, explanation = parse_question(raw)
 
-    # 🔥 CACHE (ускорение)
-    level = user_data.get(uid,{}).get("level","easy")
-    lang = users[uid]["lang"]
-    key = f"{subject}_{lang}_{level}"
+    user_data[user_id]["correct"] = correct
+    user_data[user_id]["explanation"] = explanation
+    user_data[user_id]["subject"] = subject
 
-    if key in question_cache and question_cache[key]:
-        raw = question_cache[key].pop(0)
-    else:
-        raw = await generate_question(subject, lang, level)
+    text = q + "\n" + "\n".join(opts)
 
-        # 🔥 заранее готовим ещё 2 вопроса
-        asyncio.create_task(preload_questions(subject, lang, level))
+    await message.answer(text)
 
-    data = parse_question(raw)
-
-    q = re.sub(r"Ответ:.*","",data["text"],flags=re.DOTALL)
-    q = re.sub(r"Объяснение:.*","",q,flags=re.DOTALL)
-
-    user_data.setdefault(uid,{})
-    user_data[uid].update({
-        "correct":data["correct"],
-        "question":q,
-        "explanation":data["explanation"],
-        "subject":subject
-    })
-
-    await message.answer(q.strip(), reply_markup=answers_kb())
-
-# ===== PRELOAD =====
-async def preload_questions(subject, lang, level):
-    key = f"{subject}_{lang}_{level}"
-    question_cache.setdefault(key, [])
-
-    for _ in range(2):
-        raw = await generate_question(subject, lang, level)
-        question_cache[key].append(raw)
-
-# ===== ANSWER =====
+# ====== ANSWER ======
 @dp.message_handler(lambda m: m.text in ["A","B","C","D"])
-async def answer(message: types.Message):
-    uid = str(message.from_user.id)
-    data = user_data.get(uid)
+async def answer_handler(message: types.Message):
+    user_id = str(message.from_user.id)
 
-    if not data:
-        return
+    correct = user_data.get(user_id, {}).get("correct")
+    explanation = user_data.get(user_id, {}).get("explanation")
+    subject = user_data.get(user_id, {}).get("subject")
 
-    users = load_users()
-    users.setdefault(uid,{
-        "used":0,"expire":"","correct":0,"wrong":0,
-        "name":message.from_user.full_name,"lang":"ru"
-    })
-
-    if message.text == data["correct"]:
+    if message.text == correct:
         await message.answer("✅ Правильно")
-        users[uid]["correct"]+=1
     else:
-        await message.answer(f"❌ Неправильно\nПравильный ответ: {data['correct']}")
-        users[uid]["wrong"]+=1
+        await message.answer(f"❌ Неправильно\nПравильный ответ: {correct}")
 
-    save_users(users)
+    await message.answer(explanation)
 
-    await message.answer(f"📖 {clean_text(data['explanation'])}")
+    await asyncio.sleep(1)
 
-    await asyncio.sleep(0.5)
+    await message.answer("➡️ Следующий вопрос...")
 
-    await send_question(message, data["subject"])
+    await send_question(message, subject)
 
-# ===== ВСЁ ОСТАЛЬНОЕ (НЕ ТРОГАЛ) =====
-# статистика, топ, оплата — 그대로 как у тебя
-
-# ===== BACK =====
-@dp.message_handler(lambda m: m.text=="⬅️ Назад")
+# ====== BACK ======
+@dp.message_handler(lambda m: m.text == "⬅️ Назад")
 async def back(message: types.Message):
     await message.answer("Меню", reply_markup=main_menu(message.from_user.id))
 
-# ===== RUN =====
-if __name__=="__main__":
+# ====== RUN ======
+if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
