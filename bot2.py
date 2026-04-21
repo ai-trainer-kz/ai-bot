@@ -37,6 +37,8 @@ def get_user_session(uid):
 
 # ===== UTILS =====
 def clean_text(text):
+    text = re.sub(r"\*\*", "", text)
+    text = re.sub(r"Вопрос\s*\d+:", "Вопрос:", text)
     text = re.sub(r"\\\(|\\\)", "", text)
     text = re.sub(r"\\frac\{(.*?)\}\{(.*?)\}", r"\1/\2", text)
     text = text.replace("\\", "")
