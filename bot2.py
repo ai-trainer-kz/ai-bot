@@ -321,14 +321,14 @@ async def pay(message: types.Message):
 async def paid(message: types.Message):
     u=message.from_user
 
-    kb=InlineKeyboardMarkup()
-    kb.add(
-        InlineKeyboardButton("7 дней", callback_data=f"give_7_{u.id}"),
-        InlineKeyboardButton("30 дней", callback_data=f"give_30_{u.id}")
-    )   
-    kb.add(
-        InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{u.id}"))    
-    )
+kb.add(
+    InlineKeyboardButton("7 дней", callback_data=f"give_7_{u.id}"),
+    InlineKeyboardButton("30 дней", callback_data=f"give_30_{u.id}")
+)
+
+kb.add(
+    InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{u.id}")
+)
 
     await bot.send_message(
         ADMIN_ID,
