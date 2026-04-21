@@ -243,24 +243,24 @@ async def answer(message: types.Message):
 
     subject = data.get("subject", "Общее")
     
-if message.text == data["correct"]:
-    await message.answer(t(uid, "✅ Правильно", "✅ Дұрыс"))
-    users[uid]["correct"] += 1
-    session["correct"] += 1
-
-else:
-    await message.answer(
-        t(uid,
-          f"❌ Неправильно\nПравильный ответ: {data['correct']}",
-          f"❌ Қате\nДұрыс жауап: {data['correct']}")
-    )
-    users[uid]["wrong"] += 1
-    session["wrong"] += 1
-    session["mistakes"].append(data["question"])
-    session["topics"][subject] = session["topics"].get(subject, 0) + 1
-
-session["total"] += 1
-save_users(users)
+    if message.text == data["correct"]:
+        await message.answer(t(uid, "✅ Правильно", "✅ Дұрыс"))
+        users[uid]["correct"] += 1
+        session["correct"] += 1
+    
+    else:
+        await message.answer(
+            t(uid,
+              f"❌ Неправильно\nПравильный ответ: {data['correct']}",
+              f"❌ Қате\nДұрыс жауап: {data['correct']}")
+        )
+        users[uid]["wrong"] += 1
+        session["wrong"] += 1
+        session["mistakes"].append(data["question"])
+        session["topics"][subject] = session["topics"].get(subject, 0) + 1
+    
+    session["total"] += 1
+    save_users(users)
 
     explanation = data.get("explanation") or "Нет объяснения"
     await message.answer(f"📖 {clean_text(explanation)}")
