@@ -188,6 +188,12 @@ async def send_question(message, subject):
         "name":message.from_user.full_name,"lang":"ru"
     })
 
+    # 🔥 язык
+    lang = users[uid].get("lang", "ru")
+
+    # 🔥 уровень
+    level = user_data.get(uid, {}).get("level", "easy")
+
     if not users[uid]["expire"] and users[uid]["used"]>=10:
         await message.answer("💳 Лимит закончился")
         return
@@ -195,14 +201,15 @@ async def send_question(message, subject):
     users[uid]["used"]+=1
     save_users(users)
 
-    task = asyncio.create_task(generate_question(subject, lang))
-
     msg = await message.answer("⏳ Генерирую вопрос...")
-    
-    raw = await task
-    
+
+    # 🔥 генерация
+    raw = await generate_question(subject, lang, level)
+    data = parse_question(raw)
+
     await msg.delete()
 
+    # 🔥 чистим текст
     q = re.sub(r"Ответ:.*","",data["text"],flags=re.DOTALL)
     q = re.sub(r"Объяснение:.*","",q,flags=re.DOTALL)
 
@@ -212,11 +219,11 @@ async def send_question(message, subject):
         "correct":data["correct"],
         "question":q,
         "explanation":data["explanation"],
-        "subject":subject
+        "subject":subject,
+        "level":level
     })
 
     await message.answer(q.strip(), reply_markup=answers_kb())
-
 # ===== ANSWER =====
 @dp.message_handler(lambda m: m.text in ["A","B","C","D"])
 async def answer(message: types.Message):
