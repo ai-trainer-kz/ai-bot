@@ -174,15 +174,14 @@ D) 6
         
 def parse_question(text):
     correct = re.search(r"Ответ:\s*([A-D])", text)
-    explanation = re.search(r"Объяснение:\s*(.*)", text)
+    explanation = re.search(r"Объяснение:\s*([\s\S]*)", text)
 
     return {
         "text": clean_text(text),
         "correct": correct.group(1) if correct else "A",
         "explanation": clean_text(explanation.group(1)) if explanation else ""
     }
-        text = re.sub(r"\*\*", "", text)
-        text = re.sub(r"Вопрос\s*\d+:", "Вопрос:", text)
+        
 # ===== QUESTION =====
 async def send_question(message, subject):
     uid = str(message.from_user.id)
