@@ -1,6 +1,8 @@
 import os
 import json
 import re
+import asyncio
+
 from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, types
@@ -20,6 +22,7 @@ ADMIN_ID = 8398266271
 
 USERS_FILE = "users.json"
 user_data = {}
+question_cache = {}
 
 # ===== UTILS =====
 def clean_text(text):
@@ -140,7 +143,7 @@ D) ...
 
     try:
         r = client.chat.completions.create(
-            model="gpt-4.1-mini",
+            model="gpt-4o-mini"
             messages=[{"role":"user","content":prompt}]
         )
         return r.choices[0].message.content
@@ -191,12 +194,12 @@ async def send_question(message, subject):
     users[uid]["used"]+=1
     save_users(users)
 
-    msg = await message.answer("⏳ Генерирую...")
+    task = asyncio.create_task(generate_question(subject, lang))
 
-    level = user_data.get(uid,{}).get("level","easy")
-    raw = await generate_question(subject, users[uid]["lang"], level)
-    data = parse_question(raw)
-
+    msg = await message.answer("⏳ Генерирую вопрос...")
+    
+    raw = await task
+    
     await msg.delete()
 
     q = re.sub(r"Ответ:.*","",data["text"],flags=re.DOTALL)
