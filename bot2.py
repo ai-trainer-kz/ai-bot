@@ -110,7 +110,15 @@ async def set_lang(message: types.Message):
     users[uid]["lang"] = "ru" if "Русский" in message.text else "kz"
 
     save_users(users)
-    await message.answer("✅ OK", reply_markup=main_menu(message.from_user.id))
+     await message.answer("✅ OK", reply_markup=main_menu(message.from_user.id))
+if message.text == data["correct"]:
+    await message.answer(t(uid,"✅ Правильно","✅ Дұрыс"))
+else:
+    await message.answer(
+        t(uid,
+          f"❌ Неправильно\nПравильный ответ: {data['correct']}",
+          f"❌ Қате\nДұрыс жауап: {data['correct']}")
+    )
 
 # ===== SUBJECT =====
 @dp.message_handler(lambda m: m.text in ["📚 Предметы","📚 Пәндер"])
@@ -138,11 +146,12 @@ async def generate_question(subject, lang, level):
     language = "на русском языке" if lang=="ru" else "қазақ тілінде"
 
     prompt = f"""
-Сгенерируй {level_text} тест ЕНТ {language}
+Сгенерируй ОДИН тест ЕНТ {language}
 
 Предмет: {subject}
 
-Формат строго:
+СТРОГО БЕЗ ЛИШНЕГО ТЕКСТА
+
 Вопрос: ...
 A) ...
 B) ...
@@ -178,7 +187,8 @@ def parse_question(text):
         "correct": correct.group(1) if correct else "A",
         "explanation": clean_text(explanation.group(1)) if explanation else ""
     }
-
+        text = re.sub(r"\*\*", "", text)
+        text = re.sub(r"Вопрос\s*\d+:", "Вопрос:", text)
 # ===== QUESTION =====
 async def send_question(message, subject):
     uid = str(message.from_user.id)
@@ -249,7 +259,8 @@ async def answer(message: types.Message):
     session["total"]+=1
     save_users(users)
 
-    await message.answer(f"📖 {data['explanation']}")
+    explanation = data.get("explanation") or "Нет объяснения"
+    await message.answer(f"📖 {clean_text(explanation)}")
 
     if session["total"] % 5 == 0:
         percent = round((session["correct"]/session["total"])*100,1)
@@ -274,13 +285,13 @@ async def trainer(message: types.Message):
         await message.answer("Нет ошибок")
         return
 
-    q = session["mistakes"][-1]
+    mistake = session["mistakes"][-1]
 
-    user_data[uid]={
-        "question":q,
-        "correct":"A",
-        "subject":"Тренажёр"
-    }
+user_data[uid] = {
+    "question": mistake["question"],
+    "correct": mistake["correct"],
+    "subject": "Тренажёр"
+}
 
     await message.answer(q, reply_markup=answers_kb())
 
@@ -318,6 +329,9 @@ async def paid(message: types.Message):
     kb.add(
         InlineKeyboardButton("7 дней", callback_data=f"give_7_{u.id}"),
         InlineKeyboardButton("30 дней", callback_data=f"give_30_{u.id}")
+    )   
+    kb.add(
+        InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{u.id}"))    
     )
 
     await bot.send_message(
