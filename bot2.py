@@ -290,7 +290,7 @@ async def trainer(message: types.Message):
 
     mistake = session["mistakes"][-1]
 
-user_data[uid] = {
+    user_data[uid] = {
     "question": mistake["question"],
     "correct": mistake["correct"],
     "subject": "Тренажёр"
