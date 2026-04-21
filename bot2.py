@@ -289,7 +289,7 @@ user_data[uid] = {
     "subject": "Тренажёр"
 }
 
-    await message.answer(q, reply_markup=answers_kb())
+await message.answer(mistake["question"], reply_markup=answers_kb())
 
 # ===== ОБУЧЕНИЕ =====
 @dp.message_handler(lambda m: m.text == "📖 Обучение")
