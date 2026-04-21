@@ -142,13 +142,13 @@ D) ...
 """
 
     try:
-        r = client.chat.completions.create(
-            model="gpt-4o-mini"
-            messages=[{"role":"user","content":prompt}]
-        )
-        return r.choices[0].message.content
-    except:
-        return """Вопрос: 2+2=?
+    r = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return r.choices[0].message.content
+except:
+    return """Вопрос: 2+2=?
 A) 3
 B) 4
 C) 5
