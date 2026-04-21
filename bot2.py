@@ -110,16 +110,8 @@ async def set_lang(message: types.Message):
     users[uid]["lang"] = "ru" if "Русский" in message.text else "kz"
 
     save_users(users)
-     await message.answer("✅ OK", reply_markup=main_menu(message.from_user.id))
-if message.text == data["correct"]:
-    await message.answer(t(uid,"✅ Правильно","✅ Дұрыс"))
-else:
-    await message.answer(
-        t(uid,
-          f"❌ Неправильно\nПравильный ответ: {data['correct']}",
-          f"❌ Қате\nДұрыс жауап: {data['correct']}")
-    )
 
+    await message.answer("✅ OK", reply_markup=main_menu(message.from_user.id))
 # ===== SUBJECT =====
 @dp.message_handler(lambda m: m.text in ["📚 Предметы","📚 Пәндер"])
 async def subjects(message: types.Message):
@@ -245,17 +237,20 @@ async def answer(message: types.Message):
 
     subject = data.get("subject","Общее")
 
-    if message.text == data["correct"]:
-        await message.answer("✅ Правильно")
-        users[uid]["correct"]+=1
-        session["correct"]+=1
-    else:
-        await message.answer(f"❌ Неправильно\nПравильный ответ: {data['correct']}")
-        users[uid]["wrong"]+=1
-        session["wrong"]+=1
-        session["mistakes"].append(data["question"])
-        session["topics"][subject]=session["topics"].get(subject,0)+1
-
+if message.text == data["correct"]:
+    await message.answer(t(uid,"✅ Правильно","✅ Дұрыс"))
+    users[uid]["correct"] += 1
+    session["correct"] += 1
+else:
+    await message.answer(
+        t(uid,
+          f"❌ Неправильно\nПравильный ответ: {data['correct']}",
+          f"❌ Қате\nДұрыс жауап: {data['correct']}")
+    )
+    users[uid]["wrong"] += 1
+    session["wrong"] += 1
+    session["mistakes"].append(data["question"])
+    session["topics"][subject] = session["topics"].get(subject, 0) + 1
     session["total"]+=1
     save_users(users)
 
