@@ -1,13 +1,15 @@
 import os
 import json
+import re
 import asyncio
 from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup
+from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils import executor
 from openai import OpenAI
 
+# ===== CONFIG =====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -17,28 +19,44 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 ADMIN_ID = 8398266271
 
-# ====== DATA ======
-DATA_FILE = "users.json"
+USERS_FILE = "users.json"
+user_data = {}
+
+# ===== UTILS =====
+def clean_text(text):
+    text = re.sub(r"\\\(|\\\)", "", text)
+    text = re.sub(r"\\frac\{(.*?)\}\{(.*?)\}", r"\1/\2", text)
+    text = text.replace("\\", "")
+    return text
 
 def load_users():
-    if not os.path.exists(DATA_FILE):
+    if not os.path.exists(USERS_FILE):
         return {}
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
+    with open(USERS_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def save_users(data):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+def save_users(users):
+    with open(USERS_FILE, "w", encoding="utf-8") as f:
+        json.dump(users, f, ensure_ascii=False, indent=4)
 
-user_data = {}
-question_cache = {}
+def get_lang(uid):
+    return load_users().get(str(uid), {}).get("lang", "ru")
 
-# ====== KEYBOARDS ======
+def t(uid, ru, kz):
+    return kz if get_lang(uid) == "kz" else ru
+
+# ===== KEYBOARDS =====
 def main_menu(uid):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("📚 Предметы", "📊 Статистика")
     kb.add("🏆 Топ", "💳 Оплата")
     kb.add("🌐 Тіл / Язык")
+    return kb
+
+def difficulty_kb(uid):
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("🟢 Легкий", "🔴 Сложный")
+    kb.add("⬅️ Назад")
     return kb
 
 def subjects_kb(uid):
@@ -49,71 +67,65 @@ def subjects_kb(uid):
     kb.add("⬅️ Назад")
     return kb
 
-def difficulty_kb(uid):
+def answers_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("🟢 Легкий", "🟡 Средний")
-    kb.add("🔴 Сложный")
+    kb.add("A","B")
+    kb.add("C","D")
     kb.add("⬅️ Назад")
     return kb
 
-# ====== START ======
-@dp.message_handler(commands=["start"])
+# ===== START =====
+@dp.message_handler(commands=['start'])
 async def start(message: types.Message):
     await message.answer("👋 Добро пожаловать!", reply_markup=main_menu(message.from_user.id))
 
-# ====== SUBJECT ======
-@dp.message_handler(lambda m: m.text == "📚 Предметы")
-async def subjects(message: types.Message):
-    await message.answer("Выбери предмет", reply_markup=subjects_kb(message.from_user.id))
+# ===== LANGUAGE =====
+@dp.message_handler(lambda m: m.text == "🌐 Тіл / Язык")
+async def lang(message: types.Message):
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("🇷🇺 Русский","🇰🇿 Қазақша")
+    kb.add("⬅️ Назад")
+    await message.answer("Выбери язык / Тілді таңда", reply_markup=kb)
 
-@dp.message_handler(lambda m: m.text.lower() in ["математика","физика","биология","химия","история","тарих"])
-async def subject_handler(message: types.Message):
-    user_id = str(message.from_user.id)
-
-    user_data.setdefault(user_id, {})
-    user_data[user_id]["subject"] = message.text
-
-    await message.answer(
-        "Выбери сложность",
-        reply_markup=difficulty_kb(user_id)
-    )
-
-# ====== DIFFICULTY ======
-@dp.message_handler(lambda m: m.text in ["🟢 Легкий", "🟡 Средний", "🔴 Сложный"])
-async def difficulty_handler(message: types.Message):
-    user_id = str(message.from_user.id)
-
+@dp.message_handler(lambda m: m.text in ["🇷🇺 Русский","🇰🇿 Қазақша"])
+async def set_lang(message: types.Message):
     users = load_users()
-    users.setdefault(user_id, {})
+    uid = str(message.from_user.id)
 
-    if "Легкий" in message.text:
-        users[user_id]["level"] = "easy"
-    elif "Средний" in message.text:
-        users[user_id]["level"] = "medium"
-    else:
-        users[user_id]["level"] = "hard"
+    users.setdefault(uid, {})
+    users[uid]["lang"] = "ru" if "Русский" in message.text else "kz"
 
     save_users(users)
+    await message.answer("✅ OK", reply_markup=main_menu(message.from_user.id))
 
-    subject = user_data.get(user_id, {}).get("subject")
+# ===== SUBJECT =====
+@dp.message_handler(lambda m: m.text == "📚 Предметы")
+async def subjects(message: types.Message):
+    await message.answer(
+        t(message.from_user.id, "Выбери предмет", "Пәнді таңда"),
+        reply_markup=subjects_kb(message.from_user.id)
+    )
 
-    if not subject:
-        subject = "Математика"
+@dp.message_handler(lambda m: m.text in ["Математика","Физика","Биология","Химия","История","Тарих"])
+async def subject(message: types.Message):
+    user_data[str(message.from_user.id)] = {"subject": message.text}
+    await message.answer("Выбери сложность", reply_markup=difficulty_kb(message.from_user.id))
 
-    await message.answer("🚀 Начинаем тест...")
+@dp.message_handler(lambda m: m.text in ["🟢 Легкий","🔴 Сложный"])
+async def difficulty(message: types.Message):
+    uid = str(message.from_user.id)
+    user_data.setdefault(uid, {})
+    user_data[uid]["level"] = "easy" if "Легкий" in message.text else "hard"
 
-    await send_question(message, subject)
+    await send_question(message, user_data[uid].get("subject","Математика"))
 
-# ====== AI QUESTION ======
-async def generate_question(subject, level):
-    level_text = {
-        "easy": "легкий",
-        "medium": "средний",
-        "hard": "сложный"
-    }[level]
+# ===== AI =====
+async def generate_question(subject, lang, level):
+    level_text = "легкий" if level=="easy" else "сложный"
+    language = "на русском языке" if lang=="ru" else "қазақ тілінде"
 
     prompt = f"""
-Сгенерируй {level_text} тест ЕНТ
+Сгенерируй {level_text} тест ЕНТ {language}
 
 Предмет: {subject}
 
@@ -129,12 +141,12 @@ D) ...
 
     try:
         r = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}]
+            model="gpt-4.1-mini",
+            messages=[{"role":"user","content":prompt}]
         )
         return r.choices[0].message.content
     except:
-        return """Вопрос: 2+2?
+        return """Вопрос: 2+2=?
 A) 3
 B) 4
 C) 5
@@ -142,74 +154,123 @@ D) 6
 Ответ: B
 Объяснение: 2+2=4"""
 
-# ====== PARSE ======
+async def generate_explanation(question, lang):
+    language = "на русском языке" if lang=="ru" else "қазақ тілінде"
+    try:
+        r = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[{"role":"user","content":f"Объясни {language}\n{question}"}]
+        )
+        return r.choices[0].message.content
+    except:
+        return "Ошибка генерации объяснения"
+
 def parse_question(text):
-    lines = text.split("\n")
+    correct = re.search(r"Ответ:\s*([A-D])", text)
+    explanation = re.search(r"Объяснение:\s*(.*)", text)
 
-    question = ""
-    options = []
-    correct = ""
-    explanation = ""
+    return {
+        "text": clean_text(text),
+        "correct": correct.group(1) if correct else "A",
+        "explanation": clean_text(explanation.group(1)) if explanation else ""
+    }
 
-    for line in lines:
-        if line.startswith("Вопрос"):
-            question = line
-        elif line.startswith(("A)", "B)", "C)", "D)")):
-            options.append(line)
-        elif "Ответ" in line:
-            correct = line.split(":")[-1].strip()
-        elif "Объяснение" in line:
-            explanation = line
-
-    return question, options, correct, explanation
-
-# ====== SEND QUESTION ======
+# ===== QUESTION =====
 async def send_question(message, subject):
-    user_id = str(message.from_user.id)
+    uid = str(message.from_user.id)
     users = load_users()
 
-    level = users.get(user_id, {}).get("level", "easy")
+    users.setdefault(uid,{
+        "used":0,"expire":"","correct":0,"wrong":0,
+        "name":message.from_user.full_name,"lang":"ru"
+    })
 
-    raw = await generate_question(subject, level)
-    q, opts, correct, explanation = parse_question(raw)
+    if not users[uid]["expire"] and users[uid]["used"]>=10:
+        await message.answer("💳 Лимит закончился")
+        return
 
-    user_data[user_id]["correct"] = correct
-    user_data[user_id]["explanation"] = explanation
-    user_data[user_id]["subject"] = subject
+    users[uid]["used"]+=1
+    save_users(users)
 
-    text = q + "\n" + "\n".join(opts)
+    msg = await message.answer("⏳ Генерирую...")
+
+    level = user_data.get(uid,{}).get("level","easy")
+    raw = await generate_question(subject, users[uid]["lang"], level)
+    data = parse_question(raw)
+
+    await msg.delete()
+
+    q = re.sub(r"Ответ:.*","",data["text"],flags=re.DOTALL)
+    q = re.sub(r"Объяснение:.*","",q,flags=re.DOTALL)
+
+    user_data.setdefault(uid,{})
+    user_data[uid].update({
+        "correct":data["correct"],
+        "question":q,
+        "explanation":data["explanation"],
+        "subject":subject
+    })
+
+    await message.answer(q.strip(), reply_markup=answers_kb())
+
+# ===== ANSWER =====
+@dp.message_handler(lambda m: m.text in ["A","B","C","D"])
+async def answer(message: types.Message):
+    uid = str(message.from_user.id)
+    data = user_data.get(uid)
+
+    if not data:
+        return
+
+    users = load_users()
+
+    users.setdefault(uid,{
+        "used":0,"expire":"","correct":0,"wrong":0,
+        "name":message.from_user.full_name,"lang":"ru"
+    })
+
+    if message.text == data["correct"]:
+        await message.answer("✅ Правильно")
+        users[uid]["correct"]+=1
+    else:
+        await message.answer(f"❌ Неправильно\nПравильный ответ: {data['correct']}")
+        users[uid]["wrong"]+=1
+
+    save_users(users)
+
+    explanation = data["explanation"] or await generate_explanation(data["question"], users[uid]["lang"])
+    await message.answer(f"📖 {clean_text(explanation)}")
+
+    await send_question(message, data["subject"])
+
+# ===== STATS =====
+@dp.message_handler(lambda m: m.text == "📊 Статистика")
+async def stats(message: types.Message):
+    u = load_users().get(str(message.from_user.id),{})
+    c=u.get("correct",0); w=u.get("wrong",0)
+    total=c+w
+    acc=round((c/total)*100,1) if total else 0
+
+    await message.answer(f"📊\n✅ {c}\n❌ {w}\n📚 {total}\n🎯 {acc}%")
+
+# ===== TOP =====
+@dp.message_handler(lambda m: m.text == "🏆 Топ")
+async def top(message: types.Message):
+    users=load_users()
+    r=[]
+    for u in users.values():
+        c=u.get("correct",0); w=u.get("wrong",0)
+        if c+w>0:
+            r.append((u.get("name"),c,c/(c+w)))
+    r.sort(key=lambda x:x[2],reverse=True)
+
+    text="🏆 Топ:\n"
+    for i,(n,c,a) in enumerate(r[:10],1):
+        text+=f"{i}. {n} — {c} ({round(a*100)}%)\n"
 
     await message.answer(text)
 
-# ====== ANSWER ======
-@dp.message_handler(lambda m: m.text in ["A","B","C","D"])
-async def answer_handler(message: types.Message):
-    user_id = str(message.from_user.id)
-
-    correct = user_data.get(user_id, {}).get("correct")
-    explanation = user_data.get(user_id, {}).get("explanation")
-    subject = user_data.get(user_id, {}).get("subject")
-
-    if message.text == correct:
-        await message.answer("✅ Правильно")
-    else:
-        await message.answer(f"❌ Неправильно\nПравильный ответ: {correct}")
-
-    await message.answer(explanation)
-
-    await asyncio.sleep(1)
-
-    await message.answer("➡️ Следующий вопрос...")
-
-    await send_question(message, subject)
-
-# ====== BACK ======
-@dp.message_handler(lambda m: m.text == "💳 Оплата")
-async def pay(message: types.Message):
-    kb=ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("✅ Я оплатил"); kb.add("⬅️ Назад")
-    await message.answer("Kaspi: 4400430352720152", reply_markup=kb)
-
+# ===== PAYMENT =====
 @dp.message_handler(lambda m: m.text == "💳 Оплата")
 async def pay(message: types.Message):
     kb=ReplyKeyboardMarkup(resize_keyboard=True)
@@ -254,7 +315,11 @@ async def deny(callback_query: types.CallbackQuery):
     uid=int(callback_query.data.split("_")[-1])
     await bot.send_message(uid,"❌ Оплата отклонена")
 
+# ===== BACK =====
+@dp.message_handler(lambda m: m.text=="⬅️ Назад")
+async def back(message: types.Message):
+    await message.answer("Меню", reply_markup=main_menu(message.from_user.id))
 
-# ====== RUN ======
-if __name__ == "__main__":
+# ===== RUN =====
+if __name__=="__main__":
     executor.start_polling(dp, skip_updates=True)
