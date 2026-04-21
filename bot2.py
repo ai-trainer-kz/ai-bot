@@ -148,14 +148,14 @@ D) ...
         )
         return r.choices[0].message.content
 
-except:
-    return """Вопрос: 2+2=?
-A) 3
-B) 4
-C) 5
-D) 6
-Ответ: B
-Объяснение: 2+2=4"""
+    except:
+        return """Вопрос: 2+2=?
+    A) 3
+    B) 4
+    C) 5
+    D) 6
+    Ответ: B
+    Объяснение: 2+2=4"""
 
 async def generate_explanation(question, lang):
     language = "на русском языке" if lang=="ru" else "қазақ тілінде"
