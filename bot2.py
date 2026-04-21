@@ -225,29 +225,47 @@ async def send_question(message, subject):
 async def answer(message: types.Message):
     uid = str(message.from_user.id)
     data = user_data.get(uid)
+
     if not data:
         return
 
     users = load_users()
     session = get_user_session(uid)
 
-    users.setdefault(uid,{
-        "used":0,"expire":"","correct":0,"wrong":0,
-        "name":message.from_user.full_name,"lang":"ru"
+    users.setdefault(uid, {
+        "used": 0,
+        "expire": "",
+        "correct": 0,
+        "wrong": 0,
+        "name": message.from_user.full_name,
+        "lang": "ru"
     })
 
-    subject = data.get("subject","Общее")
+    subject = data.get("subject", "Общее")
 
-if message.text == data["correct"]:
-    await message.answer(t(uid,"✅ Правильно","✅ Дұрыс"))
-    users[uid]["correct"] += 1
-    session["correct"] += 1
-else:
-    await message.answer(
-        t(uid,
-          f"❌ Неправильно\nПравильный ответ: {data['correct']}",
-          f"❌ Қате\nДұрыс жауап: {data['correct']}")
-    )
+    if message.text == data["correct"]:
+        await message.answer(t(uid, "✅ Правильно", "✅ Дұрыс"))
+        users[uid]["correct"] += 1
+        session["correct"] += 1
+    else:
+        await message.answer(
+            t(uid,
+              f"❌ Неправильно\nПравильный ответ: {data['correct']}",
+              f"❌ Қате\nДұрыс жауап: {data['correct']}")
+        )
+        users[uid]["wrong"] += 1
+        session["wrong"] += 1
+        session["mistakes"].append(data["question"])
+        session["topics"][subject] = session["topics"].get(subject, 0) + 1
+
+        session["total"] += 1
+        save_users(users)
+    else:
+        await message.answer(
+            t(uid,
+              f"❌ Неправильно\nПравильный ответ: {data['correct']}",
+              f"❌ Қате\nДұрыс жауап: {data['correct']}")
+        )
     users[uid]["wrong"] += 1
     session["wrong"] += 1
     session["mistakes"].append(data["question"])
