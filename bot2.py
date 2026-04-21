@@ -112,10 +112,13 @@ async def subjects(message: types.Message):
 async def subject_handler(message: types.Message):
     user_id = str(message.from_user.id)
 
-    user_data.setdefault(user_id, {})
-    user_data[user_id]["subject"] = message.text
+user_data.setdefault(user_id, {})
+user_data[user_id]["subject"] = message.text
 
-    await message.answer("Выбери сложность")
+await message.answer(
+    "Выбери сложность",
+    reply_markup=difficulty_kb(user_id)   
+)
 
 @dp.message_handler(lambda m: m.text in ["🟢 Легкий", "🔴 Сложный"])
 async def difficulty_handler(message: types.Message):
