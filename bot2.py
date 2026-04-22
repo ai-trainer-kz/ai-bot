@@ -264,17 +264,17 @@ async def answer(message: types.Message):
     })
 
     uid = str(message.from_user.id)
-
-if message.text == data["correct"]:
-    await message.answer(t(uid, "✅ Правильно", "✅ Дұрыс"))
-    users[uid]["correct"] += 1
-else:
-    await message.answer(
-        t(uid,
-          f"❌ Неправильно\nПравильный ответ: {data['correct']}",
-          f"❌ Қате\nДұрыс жауап: {data['correct']}")
-    )
-    users[uid]["wrong"] += 1
+    
+    if message.text == data["correct"]:
+        await message.answer(t(uid, "✅ Правильно", "✅ Дұрыс"))
+        users[uid]["correct"] += 1
+    else:
+        await message.answer(
+            t(uid,
+              f"❌ Неправильно\nПравильный ответ: {data['correct']}",
+              f"❌ Қате\nДұрыс жауап: {data['correct']}")
+        )
+        users[uid]["wrong"] += 1
 
     explanation = data["explanation"] or await generate_explanation(data["question"], users[uid]["lang"])
     lang = get_lang(uid)
