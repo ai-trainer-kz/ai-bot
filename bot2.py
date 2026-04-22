@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import asyncio
 from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, types
@@ -20,6 +21,7 @@ ADMIN_ID = 8398266271
 
 USERS_FILE = "users.json"
 user_data = {}
+used_questions = {}
 
 # ===== UTILS =====
 def clean_text(text):
