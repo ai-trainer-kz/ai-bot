@@ -52,8 +52,8 @@ def main_menu(uid):
 
     if get_lang(uid) == "kz":
         kb.add("📚 Пәндер", "📊 Статистика")
-        kb.add("🏆 Топ", "💳 Төлем")
-        kb.add("🌐 Тіл / Язык")
+        kb.add("🏆 Рейтинг", "💳 Төлем")
+        kb.add("🌐 Тіл")
     else:
         kb.add("📚 Предметы", "📊 Статистика")
         kb.add("🏆 Топ", "💳 Оплата")
@@ -69,15 +69,19 @@ def difficulty_kb(uid):
     else:
         kb.add("🟢 Легкий", "🔴 Сложный")
 
-    kb.add("⬅️ Назад")
+    kb.add(t(uid, "⬅️ Назад", "⬅️ Артқа"))
     return kb
 
 def subjects_kb(uid):
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    if get_lang(uid) == "kz":
     kb.add("Математика", "Физика")
     kb.add("Биология", "Химия")
-    kb.add("История", "Тарих")
-    kb.add("⬅️ Назад")
+    kb.add("Қазақстан тарихы", "Дүниежүзі тарихы")
+else:
+    kb.add("Математика", "Физика")
+    kb.add("Биология", "Химия")
+    kb.add("История", "История мира")
+    kb.add(t(uid, "⬅️ Назад", "⬅️ Артқа"))
     return kb
 
 def answers_kb():
@@ -173,13 +177,18 @@ D) 6
 Объяснение: 2+2=4"""
 
 async def generate_explanation(question, lang):
-    language = "на русском языке" if lang=="ru" else "қазақ тілінде"
     try:
         r = client.chat.completions.create(
             model="gpt-4.1-mini",
-            messages=[{"role":"user","content":f"Объясни {language}\n{question}"}]
+            messages=[{
+                "role": "user",
+                "content": f"{'Түсіндір' if lang=='kz' else 'Объясни'}:\n{question}"
+            }]
         )
         return r.choices[0].message.content
+
+    except:
+        return "Қате" if lang == "kz" else "Ошибка генерации"
     except:
         return "Ошибка генерации объяснения"
 
@@ -247,23 +256,17 @@ async def answer(message: types.Message):
         "name":message.from_user.full_name,"lang":"ru"
     })
 
-    lang = get_lang(uid)
+    uid = str(message.from_user.id)
 
-if message.text == data["correct"]:
-    await message.answer("✅ Дұрыс" if lang=="kz" else "✅ Правильно")
-    users[uid]["correct"] += 1
-else:
-    if lang == "kz":
-        await message.answer(f"❌ Қате\nДұрыс жауап: {data['correct']}")
-    else:
-        await message.answer(f"❌ Неправильно\nПравильный ответ: {data['correct']}")
-
-    users[uid]["wrong"] += 1
-    # слабые темы
-    users[uid].setdefault("topics", {})
-    subject = data.get("subject", "Общее")
-    users[uid]["topics"][subject] = users[uid]["topics"].get(subject, 0) + 1
-    save_users(users)
+    if message.text == data["correct"]:
+        await message.answer(t(uid, "✅ Правильно", "✅ Дұрыс"))
+        
+        users[uid]["correct"] += 1
+    await message.answer(
+        t(uid,
+         f"❌ Неправильно\nПравильный ответ: {data['correct']}",
+         f"❌ Қате\nДұрыс жауап: {data['correct']}")
+    ) 
 
     explanation = data["explanation"] or await generate_explanation(data["question"], users[uid]["lang"])
     lang = get_lang(uid)
