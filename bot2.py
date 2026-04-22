@@ -73,17 +73,20 @@ def difficulty_kb(uid):
     return kb
 
 def subjects_kb(uid):
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+
     if get_lang(uid) == "kz":
-    kb.add("Математика", "Физика")
-    kb.add("Биология", "Химия")
-    kb.add("Қазақстан тарихы", "Дүниежүзі тарихы")
-else:
-    kb.add("Математика", "Физика")
-    kb.add("Биология", "Химия")
-    kb.add("История", "История мира")
+        kb.add("Математика", "Физика")
+        kb.add("Биология", "Химия")
+        kb.add("Қазақстан тарихы", "Дүниежүзі тарихы")
+    else:
+        kb.add("Математика", "Физика")
+        kb.add("Биология", "Химия")
+        kb.add("История", "История мира")
+
     kb.add(t(uid, "⬅️ Назад", "⬅️ Артқа"))
     return kb
-
+    
 def answers_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("A","B")
