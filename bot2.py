@@ -104,12 +104,12 @@ async def start(message: types.Message):
     await message.answer("👋 Добро пожаловать!", reply_markup=main_menu(message.from_user.id))
 
 # ===== LANGUAGE =====
-@dp.message_handler(lambda m: "Тіл" in m.text or "Язык" in m.text or "🌐" in m.text)
+@dp.message_handler(lambda m: "🌐 Тіл" in m.text or "Язык" in m.text or "🌐" in m.text)
 async def lang(message: types.Message):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("🇷🇺 Русский","🇰🇿 Қазақша")
     kb.add(back_btn(uid))
-    await message.answer("Выбери язык / Тілді таңда", reply_markup=kb)
+    await message.answer("Выбери язык / 🌐 Тілді таңда", reply_markup=kb)
 
 @dp.message_handler(lambda m: m.text in ["🇷🇺 Русский","🇰🇿 Қазақша"])
 async def set_lang(message: types.Message):
