@@ -104,12 +104,12 @@ async def start(message: types.Message):
     await message.answer("👋 Добро пожаловать!", reply_markup=main_menu(message.from_user.id))
 
 # ===== LANGUAGE =====
-@dp.message_handler(lambda m: "🌐 Тіл" in m.text or "Язык" in m.text or "🌐" in m.text)
+@dp.message_handler(lambda m: "Язык" in m.text or "Тіл" in m.text)
 async def lang(message: types.Message):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("🇷🇺 Русский","🇰🇿 Қазақша")
     kb.add(back_btn(uid))
-    await message.answer("Выбери язык / 🌐 Тілді таңда", reply_markup=kb)
+    await message.answer("Выбери язык /Тілді таңда", reply_markup=kb)
 
 @dp.message_handler(lambda m: m.text in ["🇷🇺 Русский","🇰🇿 Қазақша"])
 async def set_lang(message: types.Message):
@@ -118,12 +118,11 @@ async def set_lang(message: types.Message):
 
     users.setdefault(uid, {})
     users[uid]["lang"] = "ru" if "Русский" in message.text else "kz"
-
     save_users(users)
     await message.answer("✅ OK", reply_markup=main_menu(message.from_user.id))
 
 # ===== SUBJECT =====
-@dp.message_handler(lambda m: m.text in ["📚 Предметы", "📚 Пәндер"])
+@dp.message_handler(lambda m: "Предмет" in m.text or "Пән" in m.text)
 async def subjects(message: types.Message):
     await message.answer(
         t(message.from_user.id, "Выбери предмет", "Пәнді таңда"),
@@ -286,7 +285,7 @@ async def answer(message: types.Message):
     await send_question(message, data["subject"])
 
 # ===== STATS =====
-@dp.message_handler(lambda m: "стат" in m.text.lower())
+@dp.message_handler(lambda m: "Стат" in m.text)
 async def stats(message: types.Message):
     uid = str(message.from_user.id)
     u = load_users().get(uid, {})
@@ -322,8 +321,12 @@ async def trainer(message: types.Message):
     user_data[uid] = q
 
     await message.answer(q["question"], reply_markup=answers_kb())
+
+@dp.message_handler()
+async def fallback(message: types.Message):
+    return
 # ===== TOP =====
-@dp.message_handler(lambda m: m.text == "🏆 Топ")
+@dp.message_handler(lambda m: "Топ" in m.text)
 async def top(message: types.Message):
     users=load_users()
     r=[]
@@ -340,7 +343,7 @@ async def top(message: types.Message):
     await message.answer(text)
 
 # ===== PAYMENT =====
-@dp.message_handler(lambda m: m.text == "💳 Оплата")
+@dp.message_handler(lambda m: "Оплат" in m.text)
 async def pay(message: types.Message):
     kb=ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("✅ Я оплатил"); kb.add("⬅️ Назад")
