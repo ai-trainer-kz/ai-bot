@@ -1,18 +1,24 @@
 import logging
+import os
 import re
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup
 from aiogram.utils import executor
 from openai import OpenAI
 
-API_TOKEN = "ТВОЙ_ТОКЕН_БОТА"
-client = OpenAI(api_key="ТВОЙ_OPENAI_API_KEY")
+# ===== ENV =====
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher(bot)
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+ADMIN_ID = 8398266271
 
 logging.basicConfig(level=logging.INFO)
 
-bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot)
-
+# ===== ДАННЫЕ =====
 user_data = {}
 
 # ===== КНОПКИ =====
@@ -185,7 +191,7 @@ async def answer(message: types.Message):
 async def back(message: types.Message):
     await message.answer("Меню", reply_markup=main_menu())
 
-# ===== СТАРТ БОТА =====
+# ===== СТАРТ =====
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
