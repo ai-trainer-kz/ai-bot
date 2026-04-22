@@ -49,14 +49,26 @@ def t(uid, ru, kz):
 # ===== KEYBOARDS =====
 def main_menu(uid):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("📚 Предметы", "📊 Статистика")
-    kb.add("🏆 Топ", "💳 Оплата")
-    kb.add("🌐 Тіл / Язык")
+
+    if get_lang(uid) == "kz":
+        kb.add("📚 Пәндер", "📊 Статистика")
+        kb.add("🏆 Топ", "💳 Төлем")
+        kb.add("🌐 Тіл / Язык")
+    else:
+        kb.add("📚 Предметы", "📊 Статистика")
+        kb.add("🏆 Топ", "💳 Оплата")
+        kb.add("🌐 Тіл / Язык")
+
     return kb
 
 def difficulty_kb(uid):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("🟢 Легкий", "🔴 Сложный")
+
+    if get_lang(uid) == "kz":
+        kb.add("🟢 Жеңіл", "🔴 Қиын")
+    else:
+        kb.add("🟢 Легкий", "🔴 Сложный")
+
     kb.add("⬅️ Назад")
     return kb
 
@@ -100,7 +112,7 @@ async def set_lang(message: types.Message):
     await message.answer("✅ OK", reply_markup=main_menu(message.from_user.id))
 
 # ===== SUBJECT =====
-@dp.message_handler(lambda m: m.text == "📚 Предметы")
+@dp.message_handler(lambda m: "предмет" in m.text.lower() or "пән" in m.text.lower())
 async def subjects(message: types.Message):
     await message.answer(
         t(message.from_user.id, "Выбери предмет", "Пәнді таңда"),
@@ -112,11 +124,16 @@ async def subject(message: types.Message):
     user_data[str(message.from_user.id)] = {"subject": message.text}
     await message.answer("Выбери сложность", reply_markup=difficulty_kb(message.from_user.id))
 
-@dp.message_handler(lambda m: m.text in ["🟢 Легкий","🔴 Сложный"])
+@dp.message_handler(lambda m: "лег" in m.text.lower() or "қиын" in m.text.lower() or "жең" in m.text.lower())
 async def difficulty(message: types.Message):
     uid = str(message.from_user.id)
+
     user_data.setdefault(uid, {})
-    user_data[uid]["level"] = "easy" if "Легкий" in message.text else "hard"
+
+    if "жең" in message.text.lower() or "лег" in message.text.lower():
+        user_data[uid]["level"] = "easy"
+    else:
+        user_data[uid]["level"] = "hard"
 
     await send_question(message, user_data[uid].get("subject","Математика"))
 
@@ -230,30 +247,70 @@ async def answer(message: types.Message):
         "name":message.from_user.full_name,"lang":"ru"
     })
 
-    if message.text == data["correct"]:
-        await message.answer("✅ Правильно")
-        users[uid]["correct"]+=1
+    lang = get_lang(uid)
+
+if message.text == data["correct"]:
+    await message.answer("✅ Дұрыс" if lang=="kz" else "✅ Правильно")
+    users[uid]["correct"] += 1
+else:
+    if lang == "kz":
+        await message.answer(f"❌ Қате\nДұрыс жауап: {data['correct']}")
     else:
         await message.answer(f"❌ Неправильно\nПравильный ответ: {data['correct']}")
-        users[uid]["wrong"]+=1
 
+    users[uid]["wrong"] += 1
+    # слабые темы
+    users[uid].setdefault("topics", {})
+    subject = data.get("subject", "Общее")
+    users[uid]["topics"][subject] = users[uid]["topics"].get(subject, 0) + 1
     save_users(users)
 
     explanation = data["explanation"] or await generate_explanation(data["question"], users[uid]["lang"])
-    await message.answer(f"📖 {clean_text(explanation)}")
+    lang = get_lang(uid)
+
+    title = "📖 Түсіндірме:\n" if lang=="kz" else "📖 Объяснение:\n"
+    
+    await message.answer(title + clean_text(explanation))
 
     await send_question(message, data["subject"])
 
 # ===== STATS =====
-@dp.message_handler(lambda m: m.text == "📊 Статистика")
+@dp.message_handler(lambda m: "стат" in m.text.lower())
 async def stats(message: types.Message):
-    u = load_users().get(str(message.from_user.id),{})
-    c=u.get("correct",0); w=u.get("wrong",0)
-    total=c+w
-    acc=round((c/total)*100,1) if total else 0
+    uid = str(message.from_user.id)
+    u = load_users().get(uid, {})
 
-    await message.answer(f"📊\n✅ {c}\n❌ {w}\n📚 {total}\n🎯 {acc}%")
+    c = u.get("correct",0)
+    w = u.get("wrong",0)
+    total = c + w
+    acc = round((c/total)*100,1) if total else 0
 
+    text = f"📊\n✅ {c}\n❌ {w}\n📚 {total}\n🎯 {acc}%\n"
+
+    topics = u.get("topics", {})
+    if topics:
+        text += "\n📉 Слабые темы:\n"
+        for t,cnt in topics.items():
+            text += f"{t} — {cnt}\n"
+
+    await message.answer(text)
+
+@dp.message_handler(lambda m: "тренаж" in m.text.lower())
+async def trainer(message: types.Message):
+    uid = str(message.from_user.id)
+    u = load_users().get(uid, {})
+
+    mistakes = u.get("mistakes", [])
+
+    if not mistakes:
+        await message.answer("Нет ошибок")
+        return
+
+    q = mistakes[-1]
+
+    user_data[uid] = q
+
+    await message.answer(q["question"], reply_markup=answers_kb())
 # ===== TOP =====
 @dp.message_handler(lambda m: m.text == "🏆 Топ")
 async def top(message: types.Message):
