@@ -99,7 +99,7 @@ async def start(message: types.Message):
     await message.answer("👋 Добро пожаловать!", reply_markup=main_menu(message.from_user.id))
 
 # ===== LANGUAGE =====
-@dp.message_handler(lambda m: m.text == "🌐 Тіл / Язык")
+@dp.message_handler(lambda m: "Тіл" in m.text or "Язык" in m.text)
 async def lang(message: types.Message):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("🇷🇺 Русский","🇰🇿 Қазақша")
@@ -118,7 +118,7 @@ async def set_lang(message: types.Message):
     await message.answer("✅ OK", reply_markup=main_menu(message.from_user.id))
 
 # ===== SUBJECT =====
-@dp.message_handler(lambda m: "предмет" in m.text.lower() or "пән" in m.text.lower())
+@dp.message_handler(lambda m: m.text in ["📚 Предметы", "📚 Пәндер"])
 async def subjects(message: types.Message):
     await message.answer(
         t(message.from_user.id, "Выбери предмет", "Пәнді таңда"),
@@ -376,7 +376,7 @@ async def deny(callback_query: types.CallbackQuery):
     await bot.send_message(uid,"❌ Оплата отклонена")
 
 # ===== BACK =====
-@dp.message_handler(lambda m: m.text=="⬅️ Назад")
+@dp.message_handler(lambda m: "Назад" in m.text or "Артқа" in m.text)
 async def back(message: types.Message):
     await message.answer("Меню", reply_markup=main_menu(message.from_user.id))
 
