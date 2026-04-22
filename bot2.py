@@ -206,24 +206,24 @@ async def send_question(message, subject):
     level = user_data.get(uid, {}).get("level", "easy")
 
     q_text = await generate_question(subject, lang, level)
-print("GPT RESPONSE:\n", q_text)
-
-try:
-    data = parse_question(q_text)
-except Exception as e:
-    print("PARSE ERROR:", e)
-    await msg.edit_text("❌ Ошибка парсинга")
-    return
-
-user_data[uid] = data
-user_data[uid]["subject"] = subject
-
-await msg.delete()
-
-await message.answer(
-    clean_text(data["text"]),
-    reply_markup=answers_kb()
-)
+    print("GPT RESPONSE:\n", q_text)
+    
+    try:
+        data = parse_question(q_text)
+    except Exception as e:
+        print("PARSE ERROR:", e)
+        await msg.edit_text("❌ Ошибка парсинга")
+        return
+    
+    user_data[uid] = data
+    user_data[uid]["subject"] = subject
+    
+    await msg.delete()
+    
+    await message.answer(
+        clean_text(data["text"]),
+        reply_markup=answers_kb()
+    )
 # ===== ANSWER =====
 @dp.message_handler(lambda m: m.text in ["A","B","C","D"])
 async def answer(message: types.Message):
