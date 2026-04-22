@@ -154,41 +154,59 @@ async def difficulty(message: types.Message):
     await send_question(message, user_data[uid]["subject"])
 
 # ===== AI =====
-async def generate_question(subject, lang):
-    try:
-        prompt = f"""
-Сделай 1 тестовый вопрос по предмету {subject}.
-Формат строго:
+async def generate_question(subject, lang, level):
+    level_text = "легкий" if level=="easy" else "сложный"
+    language = "на русском языке" if lang=="ru" else "қазақ тілінде"
 
+    prompt = f"""
+Сгенерируй {level_text} тест ЕНТ {language}
+
+Предмет: {subject}
+
+Формат:
 Вопрос: ...
 A) ...
 B) ...
 C) ...
 D) ...
-Ответ: A
+Ответ: A/B/C/D
 Объяснение: ...
-
-Язык: {"казахский" if lang == "kz" else "русский"}
 """
 
+    try:
         r = client.chat.completions.create(
             model="gpt-4.1-mini",
-            messages=[{"role": "user", "content": prompt}]
+            messages=[{"role":"user","content":prompt}]
         )
-
         return r.choices[0].message.content
-
     except:
-        return None
+        return """Вопрос: 2+2=?
+A) 3
+B) 4
+C) 5
+D) 6
+Ответ: B
+Объяснение: 2+2=4"""
+
+async def generate_explanation(question, lang):
+    language = "на русском языке" if lang=="ru" else "қазақ тілінде"
+    try:
+        r = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[{"role":"user","content":f"Объясни {language}\n{question}"}]
+        )
+        return r.choices[0].message.content
+    except:
+        return "Ошибка генерации объяснения"
 
 def parse_question(text):
     correct = re.search(r"Ответ:\s*([A-D])", text)
     explanation = re.search(r"Объяснение:\s*(.*)", text)
 
     return {
-        "text": text,
+        "text": clean_text(text),
         "correct": correct.group(1) if correct else "A",
-        "explanation": explanation.group(1) if explanation else ""
+        "explanation": clean_text(explanation.group(1)) if explanation else ""
     }
 
 # ===== QUESTION =====
