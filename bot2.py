@@ -265,7 +265,7 @@ async def answer(message: types.Message):
 
     uid = str(message.from_user.id)
 
-    if message.text == data["correct"]:
+if message.text == data["correct"]:
     await message.answer(t(uid, "✅ Правильно", "✅ Дұрыс"))
     users[uid]["correct"] += 1
 else:
