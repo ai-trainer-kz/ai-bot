@@ -1,3 +1,4 @@
+import os
 import logging
 import re
 from aiogram import Bot, Dispatcher, executor, types
