@@ -33,6 +33,7 @@ def clean_text(text):
 def load_users():
     if not os.path.exists(USERS_FILE):
         return {}
+
     with open(USERS_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -41,7 +42,10 @@ def save_users(users):
         json.dump(users, f, ensure_ascii=False, indent=4)
 
 def get_lang(uid):
-    return load_users().get(str(uid), {}).get("lang", "ru")
+    return load_users().get(str(uid), {}).get("lang", "ru"),
+
+def t(uid, ru, kz):
+    return kz if get_lang(uid) == "kz" else ru
 
 def back_btn(uid):
     return "⬅️ Артқа" if get_lang(uid) == "kz" else "⬅️ Назад"
@@ -90,6 +94,7 @@ def answers_kb(uid):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("A","B")
     kb.add("C","D")
+    uid = str(message.from_user.id)
     kb.add(back_btn(uid))
     return kb
 
@@ -99,7 +104,7 @@ async def start(message: types.Message):
     await message.answer("👋 Добро пожаловать!", reply_markup=main_menu(message.from_user.id))
 
 # ===== LANGUAGE =====
-@dp.message_handler(lambda m: "Тіл" in m.text or "Язык" in m.text)
+@dp.message_handler(lambda m: "Тіл" in m.text or "Язык" in m.text or "🌐" in m.text)
 async def lang(message: types.Message):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("🇷🇺 Русский","🇰🇿 Қазақша")
@@ -125,7 +130,11 @@ async def subjects(message: types.Message):
         reply_markup=subjects_kb(message.from_user.id)
     )
 
-@dp.message_handler(lambda m: m.text in ["Математика","Физика","Биология","Химия","История","Тарих"])
+lambda m: m.text in [
+    "Математика","Физика","Биология","Химия",
+    "История","История мира",
+    "Қазақстан тарихы","Дүниежүзі тарихы"
+]
 async def subject(message: types.Message):
     user_data[str(message.from_user.id)] = {"subject": message.text}
     await message.answer("Выбери сложность", reply_markup=difficulty_kb(message.from_user.id))
@@ -141,8 +150,7 @@ async def difficulty(message: types.Message):
     else:
         user_data[uid]["level"] = "hard"
 
-    await send_question(message, user_data[uid].get("subject","Математика"))
-
+    await message.answer(q.strip(), reply_markup=answers_kb(uid))
 # ===== AI =====
 async def generate_question(subject, lang, level):
     level_text = "легкий" if level=="easy" else "сложный"
@@ -258,14 +266,15 @@ async def answer(message: types.Message):
     uid = str(message.from_user.id)
 
     if message.text == data["correct"]:
-        await message.answer(t(uid, "✅ Правильно", "✅ Дұрыс"))
-        
-        users[uid]["correct"] += 1
+    await message.answer(t(uid, "✅ Правильно", "✅ Дұрыс"))
+    users[uid]["correct"] += 1
+else:
     await message.answer(
         t(uid,
-         f"❌ Неправильно\nПравильный ответ: {data['correct']}",
-         f"❌ Қате\nДұрыс жауап: {data['correct']}")
-    ) 
+          f"❌ Неправильно\nПравильный ответ: {data['correct']}",
+          f"❌ Қате\nДұрыс жауап: {data['correct']}")
+    )
+    users[uid]["wrong"] += 1
 
     explanation = data["explanation"] or await generate_explanation(data["question"], users[uid]["lang"])
     lang = get_lang(uid)
