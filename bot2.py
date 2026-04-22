@@ -160,18 +160,20 @@ async def generate_question(subject, lang, level):
 Сделай 1 тестовый вопрос по предмету {subject}.
 Сложность: {level}
 
-Формат:
-Вопрос: ...
-A) ...
-B) ...
-C) ...
-D) ...
+СТРОГО соблюдай формат:
+
+Вопрос: текст вопроса
+A) вариант
+B) вариант
+C) вариант
+D) вариант
 Ответ: A
-Объяснение: ...
+Объяснение: текст
+
+Никаких лишних слов.
 
 Язык: {"казахский" if lang == "kz" else "русский"}
 """
-
         r = client.chat.completions.create(
             model="gpt-4.1-mini",
             messages=[{"role": "user", "content": prompt}]
@@ -204,10 +206,14 @@ async def send_question(message, subject):
     level = user_data.get(uid, {}).get("level", "easy")
 
     q_text = await generate_question(subject, lang, level)
+    print("GPT RESPONSE:\n", q_text)
 
-    if not q_text:
-        await msg.edit_text("❌ Ошибка генерации")
-        return
+try:
+    data = parse_question(q_text)
+except Exception as e:
+    print("PARSE ERROR:", e)
+    await msg.edit_text("❌ Ошибка парсинга")
+    return
 
     data = parse_question(q_text)
 
@@ -226,8 +232,9 @@ async def answer(message: types.Message):
     uid = str(message.from_user.id)
     data = user_data.get(uid)
 
-    if not data:
-        return
+    if not data or "text" not in data:
+    await msg.edit_text("❌ Ошибка данных")
+    return
 
     users = load_users()
     users.setdefault(uid, {"correct":0,"wrong":0})
