@@ -232,8 +232,8 @@ async def answer(message: types.Message):
     uid = str(message.from_user.id)
     data = user_data.get(uid)
 
-    if not data 
-    return
+    if not data:
+        return
 
     users = load_users()
     users.setdefault(uid, {"correct":0,"wrong":0})
