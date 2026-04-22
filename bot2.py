@@ -2,6 +2,13 @@ import os
 import json
 import logging
 import re
+def clean_math(text):
+    text = re.sub(r'\\frac\{(\d+)\}\{(\d+)\}', r'\1/\2', text)
+    text = re.sub(r'\\cdot', '*', text)
+    text = re.sub(r'\\times', '*', text)
+    text = re.sub(r'[\{\}]', '', text)
+    text = re.sub(r'\^2', '²', text)
+    return text
 import random
 from datetime import datetime
 from aiogram import Bot, Dispatcher, types
@@ -179,6 +186,13 @@ def build_prompt(u):
 - Варианты правдоподобные и близкие
 - Только 1 правильный ответ
 - Короткое объяснение как учитель
+ПРАВИЛА:
+- НЕ используй LaTeX (\frac, \sqrt и т.д.)
+- Пиши как обычный текст
+- Дроби пиши как 1/2
+- Степени как x^2
+- Ответ обязательно укажи: Ответ: A/B/C/D
+- Добавь объяснение: Объяснение:
 
 ФОРМАТ СТРОГО:
 
@@ -212,7 +226,10 @@ async def start(message: types.Message):
 @dp.message_handler(lambda m: "Назад" in m.text)
 async def back(message: types.Message):
     u = get_user(message.from_user.id)
-    await message.answer(t(u, "Меню", "Мәзір"), reply_markup=kb_main())
+    await message.answer(
+    clean_math(clean_text(data["text"])),
+    reply_markup=answers_kb()
+)
 
 # --- Language ---
 @dp.message_handler(lambda m: "Язык" in m.text or "Тіл" in m.text)
@@ -231,8 +248,14 @@ async def set_lang(message: types.Message):
 @dp.message_handler(lambda m: "Предмет" in m.text)
 async def subjects(message: types.Message):
     u = get_user(message.from_user.id)
-    await message.answer(t(u, "Выбери предмет", "Пәнді таңда"), reply_markup=kb_subjects())
+    lang = user_data[uid].get("lang", "ru")
 
+text = {
+    "ru": "Выбери предмет",
+    "kz": "Пәнді таңда"
+}
+
+await message.answer(text[lang])
 @dp.message_handler(lambda m: m.text in ["Математика","История","География","Биология"])
 async def subject_set(message: types.Message):
     u = get_user(message.from_user.id)
@@ -326,7 +349,7 @@ async def answer(message: types.Message):
         await message.answer(t(u, f"❌ Неправильно. Ответ: {q.get('correct')}",
                                    f"❌ Қате. Дұрыс жауап: {q.get('correct')}"))
 
-    await message.answer(f"📖 {q.get('expl')}")
+    await message.answer(f"📖 {clean_math(data['expl'])}")
 
     # история + адаптация уровня
     u["history"].append({"topic": u.get("topic"), "ok": ok})
