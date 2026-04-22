@@ -232,8 +232,7 @@ async def answer(message: types.Message):
     uid = str(message.from_user.id)
     data = user_data.get(uid)
 
-    if not data or "text" not in data:
-    await msg.edit_text("❌ Ошибка данных")
+    if not data 
     return
 
     users = load_users()
