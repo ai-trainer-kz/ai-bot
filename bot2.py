@@ -1,7 +1,6 @@
 import os
 import json
 import re
-import asyncio
 from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, types
@@ -21,14 +20,6 @@ ADMIN_ID = 8398266271
 
 USERS_FILE = "users.json"
 user_data = {}
-used_questions = {}
-
-# 🔥 ТАРИФЫ
-PLANS = {
-    "free": {"limit": 10},
-    "pro": {"days": 7},
-    "max": {"days": 30}
-}
 
 # ===== UTILS =====
 def clean_text(text):
@@ -189,31 +180,15 @@ async def send_question(message, subject):
     users = load_users()
 
     users.setdefault(uid,{
-        "used":0,
-        "expire":"",
-        "plan":"free",
-        "correct":0,
-        "wrong":0,
-        "name":message.from_user.full_name,
-        "lang":"ru"
+        "used":0,"expire":"","correct":0,"wrong":0,
+        "name":message.from_user.full_name,"lang":"ru"
     })
 
-    # 🔥 ЛОГИКА ПОДПИСКИ
-    if users[uid]["plan"] == "free":
-        if users[uid]["used"] >= PLANS["free"]["limit"]:
-            await message.answer("💳 Лимит закончился. Купи PRO / MAX")
-            return
-    else:
-        if users[uid]["expire"]:
-            expire_date = datetime.strptime(users[uid]["expire"], "%Y-%m-%d")
-            if datetime.now() > expire_date:
-                users[uid]["plan"] = "free"
-                users[uid]["used"] = 0
-                save_users(users)
-                await message.answer("⛔ Подписка закончилась")
-                return
+    if not users[uid]["expire"] and users[uid]["used"]>=10:
+        await message.answer("💳 Лимит закончился")
+        return
 
-    users[uid]["used"] += 1
+    users[uid]["used"]+=1
     save_users(users)
 
     msg = await message.answer("⏳ Генерирую...")
@@ -249,7 +224,7 @@ async def answer(message: types.Message):
     users = load_users()
 
     users.setdefault(uid,{
-        "used":0,"expire":"","plan":"free","correct":0,"wrong":0,
+        "used":0,"expire":"","correct":0,"wrong":0,
         "name":message.from_user.full_name,"lang":"ru"
     })
 
@@ -298,54 +273,45 @@ async def top(message: types.Message):
 @dp.message_handler(lambda m: m.text == "💳 Оплата")
 async def pay(message: types.Message):
     kb=ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("💎 PRO (7 дней)")
-    kb.add("🚀 MAX (30 дней)")
-    kb.add("⬅️ Назад")
-
+    kb.add("✅ Я оплатил"); kb.add("⬅️ Назад")
     await message.answer("Kaspi: 4400430352720152", reply_markup=kb)
 
-@dp.message_handler(lambda m: "pro" in m.text.lower() or "max" in m.text.lower())
+@dp.message_handler(lambda m: "оплатил" in m.text.lower())
 async def paid(message: types.Message):
     u=message.from_user
 
-    plan = "pro" if "pro" in message.text.lower() else "max"
-
     kb=InlineKeyboardMarkup()
     kb.add(
-        InlineKeyboardButton("✅ Подтвердить", callback_data=f"give_{plan}_{u.id}"),
-        InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{u.id}")
+        InlineKeyboardButton("✅ 7 дней", callback_data=f"give_7_{u.id}"),
+        InlineKeyboardButton("✅ 30 дней", callback_data=f"give_30_{u.id}")
     )
+    kb.add(InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{u.id}"))
 
     await bot.send_message(
         ADMIN_ID,
-        f"💰 Оплата {plan.upper()}!\n\n👤 {u.full_name}\n🆔 {u.id}",
+        f"💰 Новая оплата!\n\n👤 {u.full_name}\n📩 @{u.username}\n🆔 {u.id}",
         reply_markup=kb
     )
 
 @dp.callback_query_handler(lambda c: c.data.startswith("give_"))
 async def give(callback_query: types.CallbackQuery):
-    parts = callback_query.data.split("_")
-    plan = parts[1]
-    uid = parts[2]
+    uid=int(callback_query.data.split("_")[-1])
+    days=7 if "7" in callback_query.data else 30
 
-    users = load_users()
-    users.setdefault(uid, {})
+    users=load_users()
+    users.setdefault(str(uid),{})
 
-    days = PLANS[plan]["days"]
-
-    expire = datetime.now() + timedelta(days=days)
-
-    users[uid]["plan"] = plan
-    users[uid]["expire"] = expire.strftime("%Y-%m-%d")
-    users[uid]["used"] = 0
+    expire=datetime.now()+timedelta(days=days)
+    users[str(uid)]["expire"]=expire.strftime("%Y-%m-%d")
+    users[str(uid)]["used"]=0  # 🔥 сброс лимита
 
     save_users(users)
 
-    await bot.send_message(uid, f"✅ {plan.upper()} активирован на {days} дней")
+    await bot.send_message(uid,f"✅ Доступ на {days} дней")
 
 @dp.callback_query_handler(lambda c: c.data.startswith("deny_"))
 async def deny(callback_query: types.CallbackQuery):
-    uid = callback_query.data.split("_")[1]
+    uid=int(callback_query.data.split("_")[-1])
     await bot.send_message(uid,"❌ Оплата отклонена")
 
 # ===== BACK =====
