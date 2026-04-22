@@ -198,17 +198,11 @@ async def send_question(message, subject):
     uid = str(message.from_user.id)
     lang = get_lang(uid)
 
-    async def send_question(message, subject):
-    uid = str(message.from_user.id)
-    lang = get_lang(uid)
-
-    # ⏳ показываем загрузку
+    # ⏳ загрузка
     msg = await message.answer("⏳ Генерирую...")
 
-    # уровень
     level = user_data.get(uid, {}).get("level", "easy")
 
-    # генерация
     q_text = await generate_question(subject, lang, level)
 
     if not q_text:
@@ -217,14 +211,11 @@ async def send_question(message, subject):
 
     data = parse_question(q_text)
 
-    # сохраняем
     user_data[uid] = data
     user_data[uid]["subject"] = subject
 
-    # удаляем песочные часы
     await msg.delete()
 
-    # отправляем вопрос
     await message.answer(
         clean_text(data["text"]),
         reply_markup=answers_kb()
