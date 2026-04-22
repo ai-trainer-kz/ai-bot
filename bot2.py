@@ -1,10 +1,12 @@
 import logging
 import re
+import os
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup
 from aiogram.utils import executor
 from openai import OpenAI
 
+# ===== ENV =====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -14,11 +16,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 ADMIN_ID = 8398266271
 
-
 logging.basicConfig(level=logging.INFO)
-
-bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot)
 
 user_data = {}
 
@@ -41,9 +39,9 @@ def level_kb():
     kb.add("⬅️ Назад")
     return kb
 
-def answers_kb(opts):
+def answers_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add(*opts)
+    kb.add("A", "B", "C", "D")
     return kb
 
 def lang_kb():
@@ -58,19 +56,18 @@ def get_lang(uid):
 
 def parse_question(text):
     lines = text.split("\n")
-    q = lines[0]
-    opts = []
-    for l in lines:
-        if re.match(r"[A-D]\)", l):
-            opts.append(l.strip())
+
+    question = lines[0]
+    options = [l for l in lines if re.match(r"[A-D]\)", l)]
+
     correct = re.search(r"Ответ:\s*([A-D])", text)
-    expl = re.search(r"Объяснение:\s*(.+)", text, re.DOTALL)
+    explanation = re.search(r"Объяснение:\s*(.+)", text, re.DOTALL)
 
     return {
-        "q": q,
-        "opts": opts,
+        "q": question,
+        "opts": options,
         "correct": correct.group(1) if correct else "A",
-        "expl": expl.group(1).strip() if expl else ""
+        "expl": explanation.group(1).strip() if explanation else ""
     }
 
 # ===== СТАРТ =====
@@ -136,7 +133,7 @@ async def send_question(message: types.Message):
 Сделай тестовый вопрос по {subject}
 Сложность: {level}
 
-Формат строго:
+Формат:
 Вопрос: ...
 A) ...
 B) ...
@@ -145,7 +142,7 @@ D) ...
 Ответ: A
 Объяснение: ...
 
-Язык: {"казахский" if lang=="kz" else "русский"}
+Язык: {"казахский" if lang == "kz" else "русский"}
 """
 
         r = client.chat.completions.create(
@@ -156,8 +153,8 @@ D) ...
         text = r.choices[0].message.content
 
     except Exception as e:
-        print(e)
-        await msg.edit_text("❌ Ошибка")
+        print("ERROR:", e)
+        await msg.edit_text("❌ Ошибка генерации")
         return
 
     await msg.delete()
@@ -169,7 +166,7 @@ D) ...
 
     nice = f"🧠 {q['q']}\n\n" + "\n".join(q["opts"])
 
-    await message.answer(nice, reply_markup=answers_kb(["A","B","C","D"]))
+    await message.answer(nice, reply_markup=answers_kb())
 
 # ===== ОТВЕТ =====
 
