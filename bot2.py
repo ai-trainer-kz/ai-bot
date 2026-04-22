@@ -189,7 +189,7 @@ async def send_question(message, subject):
     await message.answer(q.strip(), reply_markup=answers_kb())
 
 # ===== ANSWER + АНАЛИТИКА =====
-@dp.message_handler(lambda m: m.text in ["A","B","C","D"])
+@dp.message_handler(lambda m: m.text in ["A", "B", "C", "D"])
 async def answer(message: types.Message):
     uid = str(message.from_user.id)
     data = user_data.get(uid)
@@ -209,42 +209,64 @@ async def answer(message: types.Message):
         "lang": "ru"
     })
 
-    subject = data.get("subject", "Общее")
-    
+    lang = users[uid].get("lang", "ru")
+
+    # ===== ПРОВЕРКА =====
     if message.text == data["correct"]:
-        await message.answer(t(uid, "✅ Правильно", "✅ Дұрыс"))
+        if lang == "kz":
+            await message.answer("✅ Дұрыс")
+        else:
+            await message.answer("✅ Правильно")
+
         users[uid]["correct"] += 1
         session["correct"] += 1
-    
+
     else:
-        await message.answer(
-            t(uid,
-              f"❌ Неправильно\nПравильный ответ: {data['correct']}",
-              f"❌ Қате\nДұрыс жауап: {data['correct']}")
-        )
+        if lang == "kz":
+            await message.answer(
+                f"❌ Қате\nДұрыс жауап: {data['correct']}"
+            )
+        else:
+            await message.answer(
+                f"❌ Неправильно\nПравильный ответ: {data['correct']}"
+            )
+
         users[uid]["wrong"] += 1
         session["wrong"] += 1
-        session["mistakes"].append(data["question"])
-        session["topics"][subject] = session["topics"].get(subject, 0) + 1
-    
+        session["mistakes"].append(data)
+
     session["total"] += 1
     save_users(users)
 
-    explanation = data.get("explanation") or "Нет объяснения"
-    await message.answer(f"📖 {clean_text(explanation)}")
+    # ===== ОБЪЯСНЕНИЕ =====
+    if data.get("explanation"):
+        if lang == "kz":
+            await message.answer(f"📖 Түсіндірме:\n{data['explanation']}")
+        else:
+            await message.answer(f"📖 Объяснение:\n{data['explanation']}")
 
+    # ===== АНАЛИТИКА =====
     if session["total"] % 5 == 0:
-        percent = round((session["correct"]/session["total"])*100,1)
-        text=f"📊 Результат\n🎯 {percent}%\n"
+        percent = round((session["correct"] / session["total"]) * 100, 1)
 
-        if session["topics"]:
-            text+="\n📉 Слабые темы:\n"
-            for t,c in session["topics"].items():
-                text+=f"{t} — {c}\n"
+        if lang == "kz":
+            text = f"📊 Нәтиже\n🎯 {percent}%\n"
+            if session["topics"]:
+                text += "\n📉 Әлсіз тақырыптар:\n"
+                for t, c in session["topics"].items():
+                    text += f"{t} — {c}\n"
+        else:
+            text = f"📊 Результат\n🎯 {percent}%\n"
+            if session["topics"]:
+                text += "\n📉 Слабые темы:\n"
+                for t, c in session["topics"].items():
+                    text += f"{t} — {c}\n"
 
         await message.answer(text)
 
-    await send_question(message, subject)
+    # ===== СЛЕДУЮЩИЙ ВОПРОС =====
+    subject = data.get("subject", "Общее")
+    await send_question(message)
 
 # ===== ТРЕНАЖЁР =====
 @dp.message_handler(lambda m: m.text == "🔁 Тренажёр")
@@ -333,6 +355,106 @@ async def give(callback_query: types.CallbackQuery):
 @dp.message_handler(lambda m: m.text=="⬅️ Назад")
 async def back(message: types.Message):
     await message.answer("Меню", reply_markup=main_menu(message.from_user.id))
+
+@dp.message_handler(lambda m: m.text in ["📚 Пәндер", "📚 Предметы"])
+async def start_test(message: types.Message):
+    await send_question(message)
+
+
+async def send_question(message):
+    uid = str(message.from_user.id)
+
+    subject = user_data.get(uid, {}).get("subject", "математика")
+
+    prompt = f"""
+Сделай 1 тестовый вопрос по предмету {subject}.
+Формат:
+
+Вопрос: ...
+A) ...
+B) ...
+C) ...
+D) ...
+Ответ: A/B/C/D
+Объяснение: ...
+"""
+
+    r = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    text = r.choices[0].message.content
+
+    data = parse_question(text)
+
+    user_data[uid] = data
+
+    await message.answer(data["text"], reply_markup=answers_kb())
+
+
+# ===== ПАРСИНГ =====
+def parse_question(text):
+    import re
+
+    correct = re.search(r"Ответ:\s*([A-D])", text)
+    explanation = re.search(r"Объяснение:\s*(.*)", text)
+
+    return {
+        "text": text.split("Ответ:")[0],
+        "correct": correct.group(1) if correct else "A",
+        "explanation": explanation.group(1) if explanation else ""
+    }
+
+
+# ===== КНОПКИ =====
+def answers_kb():
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("A", "B", "C", "D")
+    return kb
+
+
+# ===== ОТВЕТ =====
+@dp.message_handler(lambda m: m.text in ["A", "B", "C", "D"])
+async def answer_handler(message: types.Message):
+    uid = str(message.from_user.id)
+
+    data = user_data.get(uid)
+
+    if not data:
+        return
+
+    users = load_users()
+    session = get_user_session(uid)
+
+    users.setdefault(uid, {
+        "correct": 0,
+        "wrong": 0,
+        "lang": "ru"
+    })
+
+    if message.text == data["correct"]:
+        await message.answer("✅ Правильно")
+        users[uid]["correct"] += 1
+        session["correct"] += 1
+    else:
+        await message.answer(
+            f"❌ Неправильно\nПравильный ответ: {data['correct']}"
+        )
+        users[uid]["wrong"] += 1
+        session["wrong"] += 1
+
+        session["mistakes"].append(data)
+
+    session["total"] += 1
+    save_users(users)
+
+    # объяснение
+    if data["explanation"]:
+        await message.answer(f"📖 {data['explanation']}")
+
+    # следующий вопрос
+    await send_question(message)
 
 # ===== RUN =====
 if __name__=="__main__":
