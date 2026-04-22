@@ -43,9 +43,9 @@ def save_users(users):
 def get_lang(uid):
     return load_users().get(str(uid), {}).get("lang", "ru")
 
-def t(uid, ru, kz):
-    return kz if get_lang(uid) == "kz" else ru
-
+def back_btn(uid):
+    return "⬅️ Артқа" if get_lang(uid) == "kz" else "⬅️ Назад"
+    
 # ===== KEYBOARDS =====
 def main_menu(uid):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -69,7 +69,7 @@ def difficulty_kb(uid):
     else:
         kb.add("🟢 Легкий", "🔴 Сложный")
 
-    kb.add(t(uid, "⬅️ Назад", "⬅️ Артқа"))
+    kb.add(back_btn(uid))
     return kb
 
 def subjects_kb(uid):
@@ -83,15 +83,14 @@ def subjects_kb(uid):
         kb.add("Математика", "Физика")
         kb.add("Биология", "Химия")
         kb.add("История", "История мира")
-
-    kb.add(t(uid, "⬅️ Назад", "⬅️ Артқа"))
+        kb.add(back_btn(uid))
     return kb
     
-def answers_kb():
+def answers_kb(uid):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("A","B")
     kb.add("C","D")
-    kb.add("⬅️ Назад")
+    kb.add(back_btn(uid))
     return kb
 
 # ===== START =====
@@ -104,7 +103,7 @@ async def start(message: types.Message):
 async def lang(message: types.Message):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("🇷🇺 Русский","🇰🇿 Қазақша")
-    kb.add("⬅️ Назад")
+    kb.add(back_btn(uid))
     await message.answer("Выбери язык / Тілді таңда", reply_markup=kb)
 
 @dp.message_handler(lambda m: m.text in ["🇷🇺 Русский","🇰🇿 Қазақша"])
