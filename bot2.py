@@ -154,13 +154,11 @@ async def difficulty(message: types.Message):
     await send_question(message, user_data[uid]["subject"])
 
 # ===== AI =====
-async def generate_question(subject, lang, level):
-    level_text = "легкий" if level=="easy" else "сложный"
-    language = "на русском языке" if lang=="ru" else "қазақ тілінде"
-
-    prompt = f"""
-Сгенерируй {level_text} тест ЕНТ {language}
-Предмет: {subject}
+async def generate_question(subject, lang):
+    try:
+        prompt = f"""
+Сделай 1 тестовый вопрос по предмету {subject}.
+Формат строго:
 
 Вопрос: ...
 A) ...
@@ -169,69 +167,59 @@ C) ...
 D) ...
 Ответ: A
 Объяснение: ...
+
+Язык: {"казахский" if lang == "kz" else "русский"}
 """
 
-    try:
         r = client.chat.completions.create(
             model="gpt-4.1-mini",
-            messages=[{"role":"user","content":prompt}]
+            messages=[{"role": "user", "content": prompt}]
         )
-        return r.choices[0].message.content
-    except:
-        return "Вопрос: 2+2=?\nA)3\nB)4\nC)5\nD)6\nОтвет: B\nОбъяснение: 2+2=4"
 
-async def generate_explanation(question, lang):
-    try:
-        r = client.chat.completions.create(
-            model="gpt-4.1-mini",
-            messages=[{
-                "role": "user",
-                "content": f"{'Түсіндір' if lang=='kz' else 'Объясни'}:\n{question}"
-            }]
-        )
         return r.choices[0].message.content
+
     except:
-        return "Қате" if lang == "kz" else "Ошибка"
+        return None
 
 def parse_question(text):
     correct = re.search(r"Ответ:\s*([A-D])", text)
     explanation = re.search(r"Объяснение:\s*(.*)", text)
 
     return {
-        "text": clean_text(text),
+        "text": text,
         "correct": correct.group(1) if correct else "A",
-        "explanation": clean_text(explanation.group(1)) if explanation else ""
+        "explanation": explanation.group(1) if explanation else ""
     }
 
 # ===== QUESTION =====
 async def send_question(message, subject):
     uid = str(message.from_user.id)
-    users = load_users()
-
-    users.setdefault(uid, {"used":0,"expire":"","correct":0,"wrong":0,"name":message.from_user.full_name,"lang":"ru"})
-    users[uid]["used"] += 1
-    save_users(users)
+    lang = get_lang(uid)
 
     msg = await message.answer("⏳ Генерирую...")
 
-    level = user_data.get(uid,{}).get("level","easy")
-    raw = await generate_question(subject, users[uid]["lang"], level)
-    data = parse_question(raw)
+    # генерация
+    q_text = await generate_question(subject, lang)
 
+    if not q_text:
+        await msg.edit_text("Ошибка генерации")
+        return
+
+    # парсинг
+    data = parse_question(q_text)
+
+    # сохраняем
+    user_data[uid] = data
+    user_data[uid]["subject"] = subject
+
+    # удаляем "генерирую"
     await msg.delete()
 
-    q = re.sub(r"Ответ:.*","",data["text"],flags=re.DOTALL)
-    q = re.sub(r"Объяснение:.*","",q,flags=re.DOTALL)
-
-    user_data[uid] = {
-        "correct":data["correct"],
-        "question":q,
-        "explanation":data["explanation"],
-        "subject":subject
-    }
-
-    await message.answer(q.strip(), reply_markup=answers_kb(uid))
-
+    # отправляем вопрос
+    await message.answer(
+        clean_text(data["text"]),
+        reply_markup=answers_kb()
+    )
 # ===== ANSWER =====
 @dp.message_handler(lambda m: m.text in ["A","B","C","D"])
 async def answer(message: types.Message):
