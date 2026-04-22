@@ -6,11 +6,6 @@ from openai import OpenAI
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot)
-client = OpenAI(api_key=OPENAI_API_KEY)
-
 ADMIN_ID = 8398266271
 
 logging.basicConfig(level=logging.INFO)
