@@ -2,15 +2,6 @@ import os
 import json
 import logging
 import re
-def clean_math(text):
-    text = re.sub(r'\\frac\{(\d+)\}\{(\d+)\}', r'\1/\2', text)
-    text = re.sub(r'\\cdot', '*', text)
-    text = re.sub(r'\\times', '*', text)
-    text = re.sub(r'[\{\}]', '', text)
-    text = re.sub(r'\^2', '²', text)
-    return text
-import random
-from datetime import datetime
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup
 from aiogram.utils import executor
@@ -25,6 +16,7 @@ DATA_FILE = "users.json"
 client = OpenAI(api_key=OPENAI_KEY)
 
 logging.basicConfig(level=logging.INFO)
+
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
 
@@ -55,13 +47,13 @@ def get_user(uid):
             "level": "easy",
             "correct": 0,
             "wrong": 0,
-            "history": [],   # [{topic, ok}]
-            "access": True, # заглушка под оплату
-            "last_q": None
+            "history": [],
+            "last_q": None,
+            "busy": False
         }
     return users[uid]
 
-# ===== KEYBOARDS =====
+# ===== UI =====
 
 def kb_main():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -78,13 +70,13 @@ def kb_subjects():
 
 def kb_topics(subject):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    topics_map = {
+    data = {
         "Математика": ["Алгебра", "Геометрия", "Проценты", "Логарифмы"],
         "История": ["Казахстан", "Мировая", "Даты", "Персоны"],
         "География": ["Климат", "Страны", "Ресурсы", "Карты"],
         "Биология": ["Клетка", "Генетика", "Анатомия", "Экология"]
     }
-    for t in topics_map.get(subject, []):
+    for t in data.get(subject, []):
         kb.add(t)
     kb.add("⬅️ Назад")
     return kb
@@ -109,41 +101,17 @@ def kb_lang():
 
 # ===== HELPERS =====
 
-def lang_of(u):
-    return u.get("lang", "ru")
-
 def t(u, ru, kz):
-    return kz if lang_of(u) == "kz" else ru
+    return kz if u.get("lang") == "kz" else ru
 
-def difficulty_scale(level):
-    return {"easy": 1, "medium": 2, "hard": 3}.get(level, 1)
+def clean(text):
+    if not text:
+        return ""
+    text = re.sub(r"\\frac\{(.+?)\}\{(.+?)\}", r"(\1/\2)", text)
+    text = text.replace("\\(", "").replace("\\)", "")
+    return text.strip()
 
-def next_level(u, last_ok):
-    lvl = u.get("level", "easy")
-    order = ["easy", "medium", "hard"]
-    i = order.index(lvl)
-    if last_ok and i < 2:
-        return order[i+1]
-    if not last_ok and i > 0:
-        return order[i-1]
-    return lvl
-
-def weakest_topic(u):
-    # выбираем тему, где больше ошибок
-    stats = {}
-    for h in u.get("history", []):
-        tpc = h.get("topic")
-        stats.setdefault(tpc, {"ok":0, "bad":0})
-        if h.get("ok"):
-            stats[tpc]["ok"] += 1
-        else:
-            stats[tpc]["bad"] += 1
-    if not stats:
-        return u.get("topic")
-    worst = sorted(stats.items(), key=lambda x: (x[1]["ok"] - x[1]["bad"]))[0][0]
-    return worst or u.get("topic")
-
-def parse_question(text):
+def parse(text):
     lines = [l.strip() for l in text.split("\n") if l.strip()]
     q = ""
     opts = []
@@ -158,44 +126,34 @@ def parse_question(text):
         "q": q or lines[0],
         "opts": opts[:4],
         "correct": correct.group(1) if correct else "A",
-        "expl": (expl.group(1).strip() if expl else "")
+        "expl": expl.group(1).strip() if expl else ""
     }
 
+def weakest_topic(u):
+    stats = {}
+    for h in u["history"]:
+        tpc = h["topic"]
+        stats.setdefault(tpc, {"ok":0, "bad":0})
+        if h["ok"]:
+            stats[tpc]["ok"] += 1
+        else:
+            stats[tpc]["bad"] += 1
+    if not stats:
+        return u["topic"]
+    return sorted(stats.items(), key=lambda x: x[1]["ok"]-x[1]["bad"])[0][0]
+
+# ===== AI =====
+
 def build_prompt(u):
-    subject = u.get("subject") or "Математика"
-    topic = u.get("topic") or "Общая тема"
-    level = u.get("level", "easy")
-    lang = u.get("lang", "ru")
-
-    level_desc = {
-        "easy": "базовый ЕНТ уровень",
-        "medium": "средний ЕНТ уровень",
-        "hard": "повышенный ЕНТ уровень"
-    }[level]
-
     return f"""
-Ты — опытный преподаватель ЕНТ.
+Ты преподаватель ЕНТ.
 
-Сформируй 1 экзаменационный вопрос.
-Предмет: {subject}
-Тема: {topic}
-Сложность: {level_desc}
+Сделай 1 вопрос.
+Предмет: {u['subject']}
+Тема: {u['topic']}
+Сложность: {u['level']}
 
-ТРЕБОВАНИЯ:
-- Не задавай элементарные арифметические вопросы
-- Варианты правдоподобные и близкие
-- Только 1 правильный ответ
-- Короткое объяснение как учитель
-ПРАВИЛА:
-- НЕ используй LaTeX (\frac, \sqrt и т.д.)
-- Пиши как обычный текст
-- Дроби пиши как 1/2
-- Степени как x^2
-- Ответ обязательно укажи: Ответ: A/B/C/D
-- Добавь объяснение: Объяснение:
-
-ФОРМАТ СТРОГО:
-
+ФОРМАТ:
 Вопрос: ...
 A) ...
 B) ...
@@ -204,186 +162,154 @@ D) ...
 Ответ: A
 Объяснение: ...
 
-Язык: {"казахский" if lang=="kz" else "русский"}
+Язык: {"казахский" if u["lang"]=="kz" else "русский"}
 """
 
-async def generate_question(u):
-    prompt = build_prompt(u)
-    r = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    text = r.choices[0].message.content
-    return parse_question(text)
+async def gen(u):
+    for _ in range(3):
+        try:
+            r = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[{"role": "user", "content": build_prompt(u)}]
+            )
+            return parse(r.choices[0].message.content)
+        except:
+            pass
+    raise Exception("fail")
 
-# ===== HANDLERS =====
+# ===== LOGIC =====
 
 @dp.message_handler(commands=["start"])
-async def start(message: types.Message):
-    u = get_user(message.from_user.id)
-    await message.answer(t(u, "👋 Добро пожаловать!", "👋 Қош келдіңіз!"), reply_markup=kb_main())
+async def start(m: types.Message):
+    u = get_user(m.from_user.id)
+    await m.answer(t(u,"👋 Добро пожаловать","👋 Қош келдіңіз"),reply_markup=kb_main())
 
 @dp.message_handler(lambda m: "Назад" in m.text)
-async def back(message: types.Message):
-    u = get_user(message.from_user.id)
-    await message.answer(
-    clean_math(clean_text(data["text"])),
-    reply_markup=answers_kb()
-)
+async def back(m: types.Message):
+    await m.answer("Меню", reply_markup=kb_main())
 
-# --- Language ---
 @dp.message_handler(lambda m: "Язык" in m.text or "Тіл" in m.text)
-async def choose_lang(message: types.Message):
-    u = get_user(message.from_user.id)
-    await message.answer(t(u, "Выбери язык", "Тілді таңда"), reply_markup=kb_lang())
+async def lang(m):
+    u=get_user(m.from_user.id)
+    await m.answer(t(u,"Выбери язык","Тілді таңда"),reply_markup=kb_lang())
 
-@dp.message_handler(lambda m: m.text in ["Русский", "Қазақша"])
-async def set_lang(message: types.Message):
-    u = get_user(message.from_user.id)
-    u["lang"] = "kz" if "Қазақша" in message.text else "ru"
+@dp.message_handler(lambda m: m.text in ["Русский","Қазақша"])
+async def set_lang(m):
+    u=get_user(m.from_user.id)
+    u["lang"]="kz" if "Қазақша" in m.text else "ru"
     save_users(users)
-    await message.answer("✅ OK", reply_markup=kb_main())
+    await m.answer("OK",reply_markup=kb_main())
 
-# --- Subjects ---
-@dp.message_handler(lambda m: "Предмет" in m.text)
-async def subjects(message: types.Message):
-    u = get_user(message.from_user.id)
-    lang = user_data[uid].get("lang", "ru")
+@dp.message_handler(lambda m:"Предмет" in m.text)
+async def subjects(m):
+    u=get_user(m.from_user.id)
+    await m.answer(t(u,"Выбери предмет","Пәнді таңда"),reply_markup=kb_subjects())
 
-text = {
-    "ru": "Выбери предмет",
-    "kz": "Пәнді таңда"
-}
-
-@dp.message_handler(lambda m: "Предмет" in m.text)
-async def subjects(message: types.Message):
-    u = get_user(message.from_user.id)
-    uid = str(message.from_user.id)
-
-    lang = user_data[uid].get("lang", "ru")
-
-    text = {
-        "ru": "Выбери предмет",
-        "kz": "Пәнді таңда"
-    }
-
-    await message.answer(text[lang])
-
-# --- Topics ---
-@dp.message_handler(lambda m: m.text in ["Алгебра","Геометрия","Проценты","Логарифмы",
-                                        "Казахстан","Мировая","Даты","Персоны",
-                                        "Климат","Страны","Ресурсы","Карты",
-                                        "Клетка","Генетика","Анатомия","Экология"])
-async def topic_set(message: types.Message):
-    u = get_user(message.from_user.id)
-    u["topic"] = message.text
+@dp.message_handler(lambda m:m.text in ["Математика","История","География","Биология"])
+async def set_sub(m):
+    u=get_user(m.from_user.id)
+    u["subject"]=m.text
     save_users(users)
-    await message.answer(t(u, "Выбери сложность", "Деңгейді таңда"), reply_markup=kb_level())
+    await m.answer("Выбери тему",reply_markup=kb_topics(m.text))
 
-# --- Level ---
-@dp.message_handler(lambda m: "Легкий" in m.text)
-async def level_easy(message: types.Message):
-    u = get_user(message.from_user.id)
-    u["level"] = "easy"
+@dp.message_handler(lambda m:m.text in ["Алгебра","Геометрия","Проценты","Логарифмы",
+"Казахстан","Мировая","Даты","Персоны",
+"Климат","Страны","Ресурсы","Карты",
+"Клетка","Генетика","Анатомия","Экология"])
+async def set_topic(m):
+    u=get_user(m.from_user.id)
+    u["topic"]=m.text
     save_users(users)
-    await ask(message)
+    await m.answer("Выбери сложность",reply_markup=kb_level())
 
-@dp.message_handler(lambda m: "Средний" in m.text)
-async def level_med(message: types.Message):
-    u = get_user(message.from_user.id)
-    u["level"] = "medium"
-    save_users(users)
-    await ask(message)
+@dp.message_handler(lambda m:"Легкий" in m.text)
+async def lvl1(m):
+    u=get_user(m.from_user.id)
+    u["level"]="easy"
+    await ask(m)
 
-@dp.message_handler(lambda m: "Сложный" in m.text)
-async def level_hard(message: types.Message):
-    u = get_user(message.from_user.id)
-    u["level"] = "hard"
-    save_users(users)
-    await ask(message)
+@dp.message_handler(lambda m:"Средний" in m.text)
+async def lvl2(m):
+    u=get_user(m.from_user.id)
+    u["level"]="medium"
+    await ask(m)
 
-# --- Training entry ---
-@dp.message_handler(lambda m: "Тренировка" in m.text)
-async def training(message: types.Message):
-    u = get_user(message.from_user.id)
-    if not u.get("subject"):
-        await message.answer(t(u, "Сначала выбери предмет", "Алдымен пәнді таңда"), reply_markup=kb_subjects())
+@dp.message_handler(lambda m:"Сложный" in m.text)
+async def lvl3(m):
+    u=get_user(m.from_user.id)
+    u["level"]="hard"
+    await ask(m)
+
+@dp.message_handler(lambda m:"Тренировка" in m.text)
+async def train(m):
+    u=get_user(m.from_user.id)
+    if not u["subject"]:
+        await m.answer("Сначала выбери предмет")
         return
-    if not u.get("topic"):
-        await message.answer(t(u, "Сначала выбери тему", "Алдымен тақырыпты таңда"), reply_markup=kb_topics(u["subject"]))
+    if not u["topic"]:
+        await m.answer("Сначала выбери тему")
         return
-    await ask(message)
+    await ask(m)
 
-# --- Ask question ---
-async def ask(message: types.Message):
-    u = get_user(message.from_user.id)
+async def ask(m):
+    u=get_user(m.from_user.id)
 
-    # адаптация: если есть история — бьем по слабой теме
-    if u.get("history"):
-        u["topic"] = weakest_topic(u)
+    if u["busy"]:
+        return
+    u["busy"]=True
 
-    msg = await message.answer("⏳ ...")
+    if u["history"]:
+        u["topic"]=weakest_topic(u)
+
+    msg=await m.answer("⏳")
     try:
-        q = await generate_question(u)
-    except Exception as e:
-        print("GEN ERR:", e)
-        await msg.edit_text("❌ Ошибка генерации")
+        q=await gen(u)
+    except:
+        await msg.edit_text("Ошибка")
+        u["busy"]=False
         return
 
     await msg.delete()
 
-    u["last_q"] = q
+    u["last_q"]=q
     save_users(users)
 
-    text = f"{q['q']}\n\n" + "\n".join(q["opts"])
-    await message.answer(text, reply_markup=kb_answers())
+    text=f"{clean(q['q'])}\n\n"+"\n".join([clean(o) for o in q["opts"]])
+    await m.answer(text,reply_markup=kb_answers())
 
-# --- Answer ---
-@dp.message_handler(lambda m: m.text in ["A","B","C","D"])
-async def answer(message: types.Message):
-    u = get_user(message.from_user.id)
-    q = u.get("last_q")
+    u["busy"]=False
+
+@dp.message_handler(lambda m:m.text in ["A","B","C","D"])
+async def ans(m):
+    u=get_user(m.from_user.id)
+    q=u.get("last_q")
     if not q:
         return
 
-    ok = (message.text == q.get("correct"))
+    ok=m.text==q["correct"]
+
     if ok:
-        u["correct"] += 1
-        await message.answer(t(u, "✅ Правильно!", "✅ Дұрыс!"))
+        u["correct"]+=1
+        await m.answer("✅ Правильно")
     else:
-        u["wrong"] += 1
-        await message.answer(t(u, f"❌ Неправильно. Ответ: {q.get('correct')}",
-                                   f"❌ Қате. Дұрыс жауап: {q.get('correct')}"))
+        u["wrong"]+=1
+        await m.answer(f"❌ {q['correct']}")
 
-    await message.answer(f"📖 {clean_math(data['expl'])}")
+    await m.answer(clean(q["expl"]))
 
-    # история + адаптация уровня
-    u["history"].append({"topic": u.get("topic"), "ok": ok})
-    u["level"] = next_level(u, ok)
-
+    u["history"].append({"topic":u["topic"],"ok":ok})
     save_users(users)
 
-    await ask(message)
+    await ask(m)
 
-# --- Stats ---
-@dp.message_handler(lambda m: "Статистика" in m.text)
-async def stats(message: types.Message):
-    u = get_user(message.from_user.id)
-    total = u["correct"] + u["wrong"]
-    percent = int((u["correct"]/total)*100) if total else 0
-    text = f"""
-📊 Статистика
-
-✅ {u['correct']}
-❌ {u['wrong']}
-🎯 {percent}%
-"""
-    await message.answer(text)
+@dp.message_handler(lambda m:"Статистика" in m.text)
+async def stat(m):
+    u=get_user(m.from_user.id)
+    total=u["correct"]+u["wrong"]
+    p=int(u["correct"]/total*100) if total else 0
+    await m.answer(f"✅ {u['correct']}\n❌ {u['wrong']}\n🎯 {p}%")
 
 # ===== RUN =====
 
 if __name__ == "__main__":
-    if not API_TOKEN:
-        print("❌ BOT_TOKEN не задан")
-    else:
-        executor.start_polling(dp, skip_updates=True)
+    executor.start_polling(dp, skip_updates=True)
