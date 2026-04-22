@@ -5,18 +5,19 @@ from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from openai import OpenAI
 
-API_TOKEN = "ТВОЙ_ТЕЛЕГРАМ_ТОКЕН"
-OPENAI_API_KEY = "ТВОЙ_OPENAI_API_KEY"
-ADMIN_ID = 8398266271
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-logging.basicConfig(level=logging.INFO)
-
-bot = Bot(token=API_TOKEN)
+bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+ADMIN_ID = 8398266271
+
+USERS_FILE = "users.json"
+
 user_data = {}
-sessions = {}
+user_results = {}
 
 # ================= СЕССИЯ =================
 def get_user_session(uid):
