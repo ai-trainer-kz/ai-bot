@@ -255,13 +255,19 @@ text = {
     "kz": "Пәнді таңда"
 }
 
-await message.answer(text[lang])
-@dp.message_handler(lambda m: m.text in ["Математика","История","География","Биология"])
-async def subject_set(message: types.Message):
+@dp.message_handler(lambda m: "Предмет" in m.text)
+async def subjects(message: types.Message):
     u = get_user(message.from_user.id)
-    u["subject"] = message.text
-    save_users(users)
-    await message.answer(t(u, "Выбери тему", "Тақырыпты таңда"), reply_markup=kb_topics(message.text))
+    uid = str(message.from_user.id)
+
+    lang = user_data[uid].get("lang", "ru")
+
+    text = {
+        "ru": "Выбери предмет",
+        "kz": "Пәнді таңда"
+    }
+
+    await message.answer(text[lang])
 
 # --- Topics ---
 @dp.message_handler(lambda m: m.text in ["Алгебра","Геометрия","Проценты","Логарифмы",
