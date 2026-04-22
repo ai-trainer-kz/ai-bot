@@ -2,11 +2,10 @@ import os
 import logging
 import re
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup
 from aiogram.utils import executor
 from openai import OpenAI
 
-# ===== НАСТРОЙКИ =====
 API_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -23,7 +22,7 @@ user_data = {}
 
 def main_menu():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("📚 Предметы")
+    kb.add("📚 Предметы", "📊 Статистика")
     kb.add("🌐 Язык")
     return kb
 
@@ -42,7 +41,7 @@ def level_kb():
 
 def answers_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("A", "B", "C", "D")
+    kb.add("A","B","C","D")
     kb.add("⬅️ Назад")
     return kb
 
@@ -53,12 +52,16 @@ def lang_kb():
 
 # ===== УТИЛИТЫ =====
 
-def get_lang(uid):
-    return user_data.get(uid, {}).get("lang", "ru")
+def get_user(uid):
+    user_data.setdefault(uid, {
+        "lang": "ru",
+        "correct": 0,
+        "wrong": 0
+    })
+    return user_data[uid]
 
 def parse_question(text):
     lines = text.split("\n")
-
     q = ""
     opts = []
 
@@ -84,7 +87,7 @@ def parse_question(text):
 async def start(message: types.Message):
     await message.answer("👋 Добро пожаловать!", reply_markup=main_menu())
 
-# ===== НАЗАД (ГЛОБАЛЬНЫЙ) =====
+# ===== НАЗАД =====
 
 @dp.message_handler(lambda m: "Назад" in m.text)
 async def back(message: types.Message):
@@ -99,21 +102,40 @@ async def choose_lang(message: types.Message):
 @dp.message_handler(lambda m: m.text in ["Русский", "Қазақша"])
 async def set_lang(message: types.Message):
     uid = str(message.from_user.id)
-    user_data.setdefault(uid, {})
-    user_data[uid]["lang"] = "kz" if "Қазақша" in message.text else "ru"
+    user = get_user(uid)
+    user["lang"] = "kz" if "Қазақша" in message.text else "ru"
     await message.answer("✅ OK", reply_markup=main_menu())
 
-# ===== ПРЕДМЕТЫ =====
+# ===== СТАТИСТИКА =====
+
+@dp.message_handler(lambda m: "Статистика" in m.text)
+async def stats(message: types.Message):
+    uid = str(message.from_user.id)
+    user = get_user(uid)
+
+    total = user["correct"] + user["wrong"]
+    percent = int((user["correct"]/total)*100) if total else 0
+
+    text = f"""
+📊 Статистика
+
+✅ Правильно: {user['correct']}
+❌ Неправильно: {user['wrong']}
+🎯 Точность: {percent}%
+"""
+    await message.answer(text)
+
+# ===== ПРЕДМЕТ =====
 
 @dp.message_handler(lambda m: "Предмет" in m.text)
 async def subjects(message: types.Message):
     await message.answer("Выбери предмет", reply_markup=subjects_kb())
 
-@dp.message_handler(lambda m: m.text in ["Математика", "История", "География", "Биология"])
+@dp.message_handler(lambda m: m.text in ["Математика","История","География","Биология"])
 async def subject(message: types.Message):
     uid = str(message.from_user.id)
-    user_data.setdefault(uid, {})
-    user_data[uid]["subject"] = message.text
+    user = get_user(uid)
+    user["subject"] = message.text
     await message.answer("Выбери сложность", reply_markup=level_kb())
 
 # ===== УРОВЕНЬ =====
@@ -121,33 +143,43 @@ async def subject(message: types.Message):
 @dp.message_handler(lambda m: "Легкий" in m.text)
 async def easy(message: types.Message):
     uid = str(message.from_user.id)
-    user_data[uid]["level"] = "easy"
+    get_user(uid)["level"] = "easy"
     await send_question(message)
 
 @dp.message_handler(lambda m: "Сложный" in m.text)
 async def hard(message: types.Message):
     uid = str(message.from_user.id)
-    user_data[uid]["level"] = "hard"
+    get_user(uid)["level"] = "hard"
     await send_question(message)
 
 # ===== ГЕНЕРАЦИЯ =====
 
 async def send_question(message: types.Message):
     uid = str(message.from_user.id)
-    data = user_data.get(uid, {})
+    user = get_user(uid)
 
-    subject = data.get("subject", "Математика")
-    level = data.get("level", "easy")
-    lang = get_lang(uid)
+    subject = user.get("subject","Математика")
+    level = user.get("level","easy")
+    lang = user.get("lang","ru")
 
     msg = await message.answer("⏳ Генерация...")
 
-    try:
-        prompt = f"""
-Сделай тестовый вопрос по предмету: {subject}
+    prompt = f"""
+Ты — эксперт ЕНТ.
+
+Сгенерируй 1 экзаменационный вопрос по предмету: {subject}
 Сложность: {level}
 
-Формат строго:
+ТРЕБОВАНИЯ:
+- уровень как на настоящем ЕНТ
+- НЕ простые вопросы
+- 4 варианта
+- только 1 правильный
+- варианты должны быть похожи
+- краткое объяснение
+
+ФОРМАТ:
+
 Вопрос: ...
 A) ...
 B) ...
@@ -159,15 +191,14 @@ D) ...
 Язык: {"казахский" if lang=="kz" else "русский"}
 """
 
+    try:
         r = client.chat.completions.create(
             model="gpt-4.1-mini",
-            messages=[{"role": "user", "content": prompt}]
+            messages=[{"role":"user","content":prompt}]
         )
-
         text = r.choices[0].message.content
-
     except Exception as e:
-        print("ERROR:", e)
+        print(e)
         await msg.edit_text("❌ Ошибка генерации")
         return
 
@@ -175,34 +206,35 @@ D) ...
 
     q = parse_question(text)
 
-    user_data[uid]["correct"] = q["correct"]
-    user_data[uid]["expl"] = q["expl"]
+    user["correct_answer"] = q["correct"]
+    user["expl"] = q["expl"]
 
-    full_text = f"{q['q']}\n\n" + "\n".join(q["opts"])
+    full = f"{q['q']}\n\n" + "\n".join(q["opts"])
 
-    await message.answer(full_text, reply_markup=answers_kb())
+    await message.answer(full, reply_markup=answers_kb())
 
 # ===== ОТВЕТ =====
 
-@dp.message_handler(lambda m: m.text in ["A", "B", "C", "D"])
+@dp.message_handler(lambda m: m.text in ["A","B","C","D"])
 async def answer(message: types.Message):
     uid = str(message.from_user.id)
-    data = user_data.get(uid, {})
+    user = get_user(uid)
 
-    if message.text == data.get("correct"):
+    if message.text == user.get("correct_answer"):
+        user["correct"] += 1
         await message.answer("✅ Правильно!")
     else:
-        await message.answer(f"❌ Неправильно. Ответ: {data.get('correct')}")
+        user["wrong"] += 1
+        await message.answer(f"❌ Неправильно. Ответ: {user.get('correct_answer')}")
 
-    await message.answer(f"📖 {data.get('expl')}")
+    await message.answer(f"📖 {user.get('expl')}")
 
-    # следующий вопрос автоматически
     await send_question(message)
 
 # ===== ЗАПУСК =====
 
 if __name__ == "__main__":
     if not API_TOKEN:
-        print("❌ BOT_TOKEN не найден")
+        print("❌ Нет BOT_TOKEN")
     else:
         executor.start_polling(dp, skip_updates=True)
