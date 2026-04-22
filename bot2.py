@@ -1,22 +1,21 @@
+import os
 import logging
 import re
-import os
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils import executor
 from openai import OpenAI
 
-# ===== ENV =====
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# ===== НАСТРОЙКИ =====
+API_TOKEN = os.getenv("BOT_TOKEN")
+OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot)
-client = OpenAI(api_key=OPENAI_API_KEY)
-
-ADMIN_ID = 8398266271
+client = OpenAI(api_key=OPENAI_KEY)
 
 logging.basicConfig(level=logging.INFO)
+
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher(bot)
 
 user_data = {}
 
@@ -24,12 +23,14 @@ user_data = {}
 
 def main_menu():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("📚 Предметы", "🌐 Язык")
+    kb.add("📚 Предметы")
+    kb.add("🌐 Язык")
     return kb
 
 def subjects_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("Математика", "История")
+    kb.add("География", "Биология")
     kb.add("⬅️ Назад")
     return kb
 
@@ -42,6 +43,7 @@ def level_kb():
 def answers_kb():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("A", "B", "C", "D")
+    kb.add("⬅️ Назад")
     return kb
 
 def lang_kb():
@@ -57,17 +59,23 @@ def get_lang(uid):
 def parse_question(text):
     lines = text.split("\n")
 
-    question = lines[0]
-    options = [l for l in lines if re.match(r"[A-D]\)", l)]
+    q = ""
+    opts = []
+
+    for l in lines:
+        if "Вопрос" in l:
+            q = l
+        if re.match(r"[A-D]\)", l.strip()):
+            opts.append(l.strip())
 
     correct = re.search(r"Ответ:\s*([A-D])", text)
-    explanation = re.search(r"Объяснение:\s*(.+)", text, re.DOTALL)
+    expl = re.search(r"Объяснение:\s*(.+)", text, re.DOTALL)
 
     return {
-        "q": question,
-        "opts": options,
+        "q": q,
+        "opts": opts,
         "correct": correct.group(1) if correct else "A",
-        "expl": explanation.group(1).strip() if explanation else ""
+        "expl": expl.group(1).strip() if expl else ""
     }
 
 # ===== СТАРТ =====
@@ -75,6 +83,12 @@ def parse_question(text):
 @dp.message_handler(commands=["start"])
 async def start(message: types.Message):
     await message.answer("👋 Добро пожаловать!", reply_markup=main_menu())
+
+# ===== НАЗАД (ГЛОБАЛЬНЫЙ) =====
+
+@dp.message_handler(lambda m: "Назад" in m.text)
+async def back(message: types.Message):
+    await message.answer("Меню", reply_markup=main_menu())
 
 # ===== ЯЗЫК =====
 
@@ -89,13 +103,13 @@ async def set_lang(message: types.Message):
     user_data[uid]["lang"] = "kz" if "Қазақша" in message.text else "ru"
     await message.answer("✅ OK", reply_markup=main_menu())
 
-# ===== ПРЕДМЕТ =====
+# ===== ПРЕДМЕТЫ =====
 
 @dp.message_handler(lambda m: "Предмет" in m.text)
 async def subjects(message: types.Message):
     await message.answer("Выбери предмет", reply_markup=subjects_kb())
 
-@dp.message_handler(lambda m: m.text in ["Математика", "История"])
+@dp.message_handler(lambda m: m.text in ["Математика", "История", "География", "Биология"])
 async def subject(message: types.Message):
     uid = str(message.from_user.id)
     user_data.setdefault(uid, {})
@@ -126,14 +140,14 @@ async def send_question(message: types.Message):
     level = data.get("level", "easy")
     lang = get_lang(uid)
 
-    msg = await message.answer("⏳ Генерирую...")
+    msg = await message.answer("⏳ Генерация...")
 
     try:
         prompt = f"""
-Сделай тестовый вопрос по {subject}
+Сделай тестовый вопрос по предмету: {subject}
 Сложность: {level}
 
-Формат:
+Формат строго:
 Вопрос: ...
 A) ...
 B) ...
@@ -142,7 +156,7 @@ D) ...
 Ответ: A
 Объяснение: ...
 
-Язык: {"казахский" if lang == "kz" else "русский"}
+Язык: {"казахский" if lang=="kz" else "русский"}
 """
 
         r = client.chat.completions.create(
@@ -164,13 +178,13 @@ D) ...
     user_data[uid]["correct"] = q["correct"]
     user_data[uid]["expl"] = q["expl"]
 
-    nice = f"🧠 {q['q']}\n\n" + "\n".join(q["opts"])
+    full_text = f"{q['q']}\n\n" + "\n".join(q["opts"])
 
-    await message.answer(nice, reply_markup=answers_kb())
+    await message.answer(full_text, reply_markup=answers_kb())
 
 # ===== ОТВЕТ =====
 
-@dp.message_handler(lambda m: m.text in ["A","B","C","D"])
+@dp.message_handler(lambda m: m.text in ["A", "B", "C", "D"])
 async def answer(message: types.Message):
     uid = str(message.from_user.id)
     data = user_data.get(uid, {})
@@ -182,15 +196,13 @@ async def answer(message: types.Message):
 
     await message.answer(f"📖 {data.get('expl')}")
 
+    # следующий вопрос автоматически
     await send_question(message)
 
-# ===== НАЗАД =====
-
-@dp.message_handler(lambda m: "Назад" in m.text)
-async def back(message: types.Message):
-    await message.answer("Меню", reply_markup=main_menu())
-
-# ===== СТАРТ =====
+# ===== ЗАПУСК =====
 
 if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
+    if not API_TOKEN:
+        print("❌ BOT_TOKEN не найден")
+    else:
+        executor.start_polling(dp, skip_updates=True)
