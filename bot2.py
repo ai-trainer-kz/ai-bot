@@ -192,9 +192,6 @@ async def generate_explanation(question, lang):
 
     except:
         return "Қате" if lang == "kz" else "Ошибка генерации"
-    except:
-        return "Ошибка генерации объяснения"
-
 def parse_question(text):
     correct = re.search(r"Ответ:\s*([A-D])", text)
     explanation = re.search(r"Объяснение:\s*(.*)", text)
