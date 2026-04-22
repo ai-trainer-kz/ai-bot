@@ -155,13 +155,10 @@ async def difficulty(message: types.Message):
 
 # ===== AI =====
 async def generate_question(subject, lang, level):
-    level_text = "легкий" if level=="easy" else "сложный"
-    language = "на русском языке" if lang=="ru" else "қазақ тілінде"
-
-    prompt = f"""
-Сгенерируй {level_text} тест ЕНТ {language}
-
-Предмет: {subject}
+    try:
+        prompt = f"""
+Сделай 1 тестовый вопрос по предмету {subject}.
+Сложность: {level}
 
 Формат:
 Вопрос: ...
@@ -169,36 +166,23 @@ A) ...
 B) ...
 C) ...
 D) ...
-Ответ: A/B/C/D
+Ответ: A
 Объяснение: ...
+
+Язык: {"казахский" if lang == "kz" else "русский"}
 """
 
-    try:
         r = client.chat.completions.create(
             model="gpt-4.1-mini",
-            messages=[{"role":"user","content":prompt}]
+            messages=[{"role": "user", "content": prompt}]
         )
-        return r.choices[0].message.content
-    except:
-        return """Вопрос: 2+2=?
-A) 3
-B) 4
-C) 5
-D) 6
-Ответ: B
-Объяснение: 2+2=4"""
 
-async def generate_explanation(question, lang):
-    language = "на русском языке" if lang=="ru" else "қазақ тілінде"
-    try:
-        r = client.chat.completions.create(
-            model="gpt-4.1-mini",
-            messages=[{"role":"user","content":f"Объясни {language}\n{question}"}]
-        )
         return r.choices[0].message.content
-    except:
-        return "Ошибка генерации объяснения"
 
+    except Exception as e:
+        print("ERROR:", e)
+        return None
+        
 def parse_question(text):
     correct = re.search(r"Ответ:\s*([A-D])", text)
     explanation = re.search(r"Объяснение:\s*(.*)", text)
@@ -214,23 +198,30 @@ async def send_question(message, subject):
     uid = str(message.from_user.id)
     lang = get_lang(uid)
 
+    async def send_question(message, subject):
+    uid = str(message.from_user.id)
+    lang = get_lang(uid)
+
+    # ⏳ показываем загрузку
     msg = await message.answer("⏳ Генерирую...")
 
+    # уровень
+    level = user_data.get(uid, {}).get("level", "easy")
+
     # генерация
-    q_text = await generate_question(subject, lang)
+    q_text = await generate_question(subject, lang, level)
 
     if not q_text:
-        await msg.edit_text("Ошибка генерации")
+        await msg.edit_text("❌ Ошибка генерации")
         return
 
-    # парсинг
     data = parse_question(q_text)
 
     # сохраняем
     user_data[uid] = data
     user_data[uid]["subject"] = subject
 
-    # удаляем "генерирую"
+    # удаляем песочные часы
     await msg.delete()
 
     # отправляем вопрос
