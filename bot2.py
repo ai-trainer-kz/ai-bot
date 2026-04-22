@@ -294,22 +294,24 @@ async def pay(message: types.Message):
 
 @dp.message_handler(lambda m: "оплатил" in m.text.lower())
 async def paid(message: types.Message):
-    u=message.from_user
+    u = message.from_user
 
-kb.add(
-    InlineKeyboardButton("7 дней", callback_data=f"give_7_{u.id}"),
-    InlineKeyboardButton("30 дней", callback_data=f"give_30_{u.id}")
-)
+    kb = InlineKeyboardMarkup()
 
-kb.add(
-    InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{u.id}")
-)
+    kb.add(
+        InlineKeyboardButton("7 дней", callback_data=f"give_7_{u.id}"),
+        InlineKeyboardButton("30 дней", callback_data=f"give_30_{u.id}")
+    )
 
-await bot.send_message(
-    ADMIN_ID,
-    f"💰 Оплата\n{u.full_name}\n@{u.username}\n{u.id}",
-    reply_markup=kb
-)
+    kb.add(
+        InlineKeyboardButton("❌ Отказать", callback_data=f"deny_{u.id}")
+    )
+
+    await bot.send_message(
+        ADMIN_ID,
+        f"💰 Оплата\n{u.full_name}\n@{u.username}\n{u.id}",
+        reply_markup=kb
+    )
 
 @dp.callback_query_handler(lambda c: c.data.startswith("give_"))
 async def give(callback_query: types.CallbackQuery):
