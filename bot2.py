@@ -4,8 +4,8 @@ from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from openai import OpenAI
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+API_TOKEN = "ТВОЙ_ТЕЛЕГРАМ_ТОКЕН"
+OPENAI_API_KEY = "ТВОЙ_OPENAI_API_KEY"
 ADMIN_ID = 8398266271
 
 logging.basicConfig(level=logging.INFO)
