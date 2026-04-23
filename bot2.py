@@ -55,13 +55,16 @@ def get_user(uid):
 
 # ===== UI =====
 
-def kb_main():
+def t(u, ru, kz):
+    return kz if u.get("lang") == "kz" else ru
+
+def kb_main(u):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("📚 Предметы", "🧠 Тренировка")
-    kb.add("📊 Статистика", "🌐 Язык")
+    kb.add(t(u,"📚 Предметы","📚 Пәндер"), t(u,"🧠 Тренировка","🧠 Жаттығу"))
+    kb.add(t(u,"📊 Статистика","📊 Статистика"), t(u,"🌐 Язык","🌐 Тіл"))
     return kb
 
-def kb_subjects():
+def kb_subjects(u):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("Математика", "История")
     kb.add("География", "Биология")
@@ -76,8 +79,8 @@ def kb_topics(subject):
         "География": ["Климат", "Страны", "Ресурсы", "Карты"],
         "Биология": ["Клетка", "Генетика", "Анатомия", "Экология"]
     }
-    for t in data.get(subject, []):
-        kb.add(t)
+    for tpc in data.get(subject, []):
+        kb.add(tpc)
     kb.add("⬅️ Назад")
     return kb
 
@@ -90,6 +93,7 @@ def kb_level():
 def kb_answers():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("A", "B", "C", "D")
+    kb.add("➡️ Далее")
     kb.add("⬅️ Назад")
     return kb
 
@@ -100,9 +104,6 @@ def kb_lang():
     return kb
 
 # ===== HELPERS =====
-
-def t(u, ru, kz):
-    return kz if u.get("lang") == "kz" else ru
 
 def clean(text):
     if not text:
@@ -129,6 +130,9 @@ def parse(text):
         "expl": expl.group(1).strip() if expl else ""
     }
 
+def validate(q):
+    return len(q["opts"]) == 4 and q["correct"] in ["A","B","C","D"]
+
 def weakest_topic(u):
     stats = {}
     for h in u["history"]:
@@ -146,9 +150,14 @@ def weakest_topic(u):
 
 def build_prompt(u):
     return f"""
-Ты преподаватель ЕНТ.
+Ты строгий эксперт ЕНТ.
 
-Сделай 1 вопрос.
+Сначала РЕШИ задачу, потом пиши.
+
+Проверяй:
+- правильность ответа
+- совпадение с объяснением
+
 Предмет: {u['subject']}
 Тема: {u['topic']}
 Сложность: {u['level']}
@@ -172,7 +181,9 @@ async def gen(u):
                 model="gpt-4.1-mini",
                 messages=[{"role": "user", "content": build_prompt(u)}]
             )
-            return parse(r.choices[0].message.content)
+            q = parse(r.choices[0].message.content)
+            if validate(q):
+                return q
         except:
             pass
     raise Exception("fail")
@@ -182,11 +193,12 @@ async def gen(u):
 @dp.message_handler(commands=["start"])
 async def start(m: types.Message):
     u = get_user(m.from_user.id)
-    await m.answer(t(u,"👋 Добро пожаловать","👋 Қош келдіңіз"),reply_markup=kb_main())
+    await m.answer(t(u,"👋 Добро пожаловать","👋 Қош келдіңіз"),reply_markup=kb_main(u))
 
-@dp.message_handler(lambda m: "Назад" in m.text)
+@dp.message_handler(lambda m: m.text == "⬅️ Назад")
 async def back(m: types.Message):
-    await m.answer("Меню", reply_markup=kb_main())
+    u = get_user(m.from_user.id)
+    await m.answer(t(u,"Меню","Мәзір"), reply_markup=kb_main(u))
 
 @dp.message_handler(lambda m: "Язык" in m.text or "Тіл" in m.text)
 async def lang(m):
@@ -198,19 +210,19 @@ async def set_lang(m):
     u=get_user(m.from_user.id)
     u["lang"]="kz" if "Қазақша" in m.text else "ru"
     save_users(users)
-    await m.answer("OK",reply_markup=kb_main())
+    await m.answer("OK",reply_markup=kb_main(u))
 
 @dp.message_handler(lambda m:"Предмет" in m.text)
 async def subjects(m):
     u=get_user(m.from_user.id)
-    await m.answer(t(u,"Выбери предмет","Пәнді таңда"),reply_markup=kb_subjects())
+    await m.answer(t(u,"Выбери предмет","Пәнді таңда"),reply_markup=kb_subjects(u))
 
 @dp.message_handler(lambda m:m.text in ["Математика","История","География","Биология"])
 async def set_sub(m):
     u=get_user(m.from_user.id)
     u["subject"]=m.text
     save_users(users)
-    await m.answer("Выбери тему",reply_markup=kb_topics(m.text))
+    await m.answer(t(u,"Выбери тему","Тақырыпты таңда"),reply_markup=kb_topics(m.text))
 
 @dp.message_handler(lambda m:m.text in ["Алгебра","Геометрия","Проценты","Логарифмы",
 "Казахстан","Мировая","Даты","Персоны",
@@ -220,7 +232,7 @@ async def set_topic(m):
     u=get_user(m.from_user.id)
     u["topic"]=m.text
     save_users(users)
-    await m.answer("Выбери сложность",reply_markup=kb_level())
+    await m.answer(t(u,"Выбери сложность","Деңгейді таңда"),reply_markup=kb_level())
 
 @dp.message_handler(lambda m:"Легкий" in m.text)
 async def lvl1(m):
@@ -261,11 +273,11 @@ async def ask(m):
     if u["history"]:
         u["topic"]=weakest_topic(u)
 
-    msg=await m.answer("⏳")
+    msg=await m.answer("⏳ Генерация...")
     try:
         q=await gen(u)
     except:
-        await msg.edit_text("Ошибка")
+        await msg.edit_text("Ошибка генерации")
         u["busy"]=False
         return
 
@@ -293,13 +305,15 @@ async def ans(m):
         await m.answer("✅ Правильно")
     else:
         u["wrong"]+=1
-        await m.answer(f"❌ {q['correct']}")
+        await m.answer(f"❌ Правильный ответ: {q['correct']}")
 
     await m.answer(clean(q["expl"]))
 
     u["history"].append({"topic":u["topic"],"ok":ok})
     save_users(users)
 
+@dp.message_handler(lambda m: m.text == "➡️ Далее")
+async def next_q(m):
     await ask(m)
 
 @dp.message_handler(lambda m:"Статистика" in m.text)
@@ -307,7 +321,7 @@ async def stat(m):
     u=get_user(m.from_user.id)
     total=u["correct"]+u["wrong"]
     p=int(u["correct"]/total*100) if total else 0
-    await m.answer(f"✅ {u['correct']}\n❌ {u['wrong']}\n🎯 {p}%")
+    await m.answer(f"📊\n✅ {u['correct']}\n❌ {u['wrong']}\n🎯 {p}%")
 
 # ===== RUN =====
 
