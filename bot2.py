@@ -227,23 +227,23 @@ async def ans(m):
     u = get_user(m.from_user.id)
     q = u.get("last_q")
 
-if not q:
-    return
+    if not q:
+        return
 
-correct = q.get("correct")
+    correct = q.get("correct")
 
-if not correct:
-    await m.answer("⚠️ Ошибка в вопросе (нет правильного ответа)")
-    return
+    if not correct:
+        await m.answer("⚠️ Ошибка в вопросе (нет правильного ответа)")
+        return
 
-ok = m.text == correct
+    ok = m.text == correct
 
-if ok:
-    u["correct"] += 1
-    await m.answer("✅ Правильно")
-else:
-    u["wrong"] += 1
-    await m.answer(f"❌ Правильный ответ: {correct}")
+    if ok:
+        u["correct"] += 1
+        await m.answer("✅ Правильно")
+    else:
+        u["wrong"] += 1
+        await m.answer(f"❌ Правильный ответ: {correct}")
 
     save_users(users)
     await ask(m)
