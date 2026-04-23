@@ -297,25 +297,25 @@ async def ans(m):
 
     ok = m.text == q["correct"]
 
-lang = u.get("lang","ru")
-
-if ok:
-    u["correct"] += 1
-    if lang == "kz":
-        await m.answer("✅ Дұрыс")
+    lang = u.get("lang","ru")
+    
+    if ok:
+        u["correct"] += 1
+        if lang == "kz":
+            await m.answer("✅ Дұрыс")
+        else:
+            await m.answer("✅ Правильно")
     else:
-        await m.answer("✅ Правильно")
-else:
-    u["wrong"] += 1
-    if lang == "kz":
-        await m.answer(f"❌ Дұрыс жауап: {q['correct']}")
-    else:
-        await m.answer(f"❌ Правильный ответ: {q['correct']}")
-
-    await m.answer(clean(q["expl"]))
-    save_users(users)
-
-    await ask(m)
+        u["wrong"] += 1
+        if lang == "kz":
+            await m.answer(f"❌ Дұрыс жауап: {q['correct']}")
+        else:
+            await m.answer(f"❌ Правильный ответ: {q['correct']}")
+    
+        await m.answer(clean(q["expl"]))
+        save_users(users)
+    
+        await ask(m)
 
 @dp.message_handler(lambda m: "Доступ" in m.text or "Қолжетімділік" in m.text)
 async def pay(m):
