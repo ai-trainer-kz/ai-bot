@@ -18,7 +18,6 @@ logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
-"used": []
 
 # ===== БАЗА =====
 
