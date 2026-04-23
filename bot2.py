@@ -12,7 +12,7 @@ OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
 DATA_FILE = "users.json"
 
-# 🔥 ДОБАВИЛ
+# 🔥 ТВОИ НАСТРОЙКИ
 ADMIN_ID = 8398266271
 KASPI = "4400430352720152"
 LIMIT = 30
@@ -54,7 +54,7 @@ def get_user(uid):
             "history": [],
             "last_q": None,
             "busy": False,
-            "paid": False
+            "paid": False  # 🔥 ДОБАВИЛ
         }
     return users[uid]
 
@@ -65,8 +65,10 @@ def t(u, ru, kz):
 
 def kb_main(u):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("📚 Предметы","🧠 Тренировка")
-    kb.add("📊 Статистика","🌐 Язык")
+    kb.add(t(u,"📚 Предметы","📚 Пәндер"),
+           t(u,"🧠 Тренировка","🧠 Жаттығу"))
+    kb.add(t(u,"📊 Статистика","📊 Статистика"),
+           t(u,"🌐 Язык","🌐 Тіл"))
     return kb
 
 def kb_subjects(u):
@@ -113,30 +115,60 @@ def clean(text):
     if not text:
         return ""
     text = re.sub(r"\\frac\{(.+?)\}\{(.+?)\}", r"(\1/\2)", text)
+    text = text.replace("\\(", "").replace("\\)", "")
     return text.strip()
 
 def parse(text):
     lines = [l.strip() for l in text.split("\n") if l.strip()]
-    opts = [l for l in lines if re.match(r"^[A-D]\)", l)]
+
+    q = ""
+    opts = []
+
+    for l in lines:
+        if re.match(r"^(Вопрос|Сұрақ)", l):
+            q = l
+        if re.match(r"^[A-D]\)", l):
+            opts.append(l)
 
     correct_match = re.search(r"(Ответ|Жауап)\s*:\s*([A-D])", text)
     correct_letter = correct_match.group(2) if correct_match else None
 
+    if correct_letter not in ["A","B","C","D"]:
+        correct_letter = None
+
+    expl = re.search(r"(Объяснение|Түсіндіру)\s*:\s*(.+)", text, re.DOTALL)
+
     return {
-        "q": lines[0] if lines else "",
+        "q": q or (lines[0] if lines else ""),
         "opts": opts[:4],
         "correct": correct_letter,
-        "expl": ""
+        "expl": expl.group(2).strip() if expl else ""
     }
 
 # ===== AI =====
 
 def build_prompt(u):
-    return f"""
+    if u["lang"] == "kz":
+        return f"""
+Тек қазақ тілінде.
+Пән: {u['subject']}
+Тақырып: {u['topic']}
+Деңгей: {u['level']}
+
+Сұрақ: ...
+A) ...
+B) ...
+C) ...
+D) ...
+Жауап: A
+Түсіндіру: ...
+"""
+    else:
+        return f"""
+Только русский язык.
 Предмет: {u['subject']}
 Тема: {u['topic']}
-
-НЕ смешивай предметы!
+Сложность: {u['level']}
 
 Вопрос: ...
 A) ...
@@ -144,108 +176,149 @@ B) ...
 C) ...
 D) ...
 Ответ: A
+Объяснение: ...
 """
 
 async def gen(u):
-    r = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[{"role": "user", "content": build_prompt(u)}]
-    )
-    return parse(r.choices[0].message.content)
+    for _ in range(5):
+        try:
+            r = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[{"role": "user", "content": build_prompt(u)}]
+            )
+            q = parse(r.choices[0].message.content)
 
-# ===== LOGIC =====
+            if len(q["opts"]) == 4 and q["correct"]:
+                return q
 
-async def check_limit(m, u):
-    total = u["correct"] + u["wrong"]
+        except Exception as e:
+            print("GEN ERR:", e)
 
-    if not u["paid"] and total >= LIMIT:
-        await m.answer(
-            f"🚫 Лимит достигнут!\n\n"
-            f"💳 Оплата: 7.30\n"
-            f"KASPI: {KASPI}\n\n"
-            f"После оплаты нажми: Я оплатил"
-        )
-        return True
-    return False
+    raise Exception("fail")
 
-@dp.message_handler(lambda m: m.text == "Я оплатил")
-async def paid(m):
-    u = get_user(m.from_user.id)
+# ===== HANDLERS =====
 
-    await bot.send_message(
-        ADMIN_ID,
-        f"Оплата от @{m.from_user.username} | {m.from_user.id}"
-    )
-
-    await m.answer("⏳ Ожидайте подтверждения")
-    
 @dp.message_handler(commands=["start"])
-async def start(m):
+async def start(m: types.Message):
     u = get_user(m.from_user.id)
-    await m.answer("Добро пожаловать", reply_markup=kb_main(u))
+    await m.answer(t(u,"👋 Добро пожаловать","👋 Қош келдіңіз"),
+                   reply_markup=kb_main(u))
 
-@dp.message_handler(lambda m: "Предмет" in m.text)
-async def subjects(m):
+@dp.message_handler(lambda m: "Назад" in m.text)
+async def back(m):
     u = get_user(m.from_user.id)
-    await m.answer("Выбери предмет", reply_markup=kb_subjects(u))
+    await m.answer(t(u,"Меню","Меню"), reply_markup=kb_main(u))
 
-@dp.message_handler(lambda m: m.text in ["Математика","История","География","Биология"])
-async def set_sub(m):
-    u = get_user(m.from_user.id)
-    u["subject"] = m.text
-    u["topic"] = None
+@dp.message_handler(lambda m: "Язык" in m.text or "Тіл" in m.text)
+async def lang(m):
+    u=get_user(m.from_user.id)
+    await m.answer(t(u,"Выбери язык","Тілді таңда"),
+                   reply_markup=kb_lang())
+
+@dp.message_handler(lambda m: m.text in ["Русский","Қазақша"])
+async def set_lang(m):
+    u=get_user(m.from_user.id)
+    u["lang"]="kz" if m.text=="Қазақша" else "ru"
     save_users(users)
-    await m.answer("Выбери тему", reply_markup=kb_topics(m.text))
+    await m.answer("OK",reply_markup=kb_main(u))
 
-@dp.message_handler(lambda m: m.text in [
+@dp.message_handler(lambda m:"Предмет" in m.text or "Пән" in m.text)
+async def subjects(m):
+    u=get_user(m.from_user.id)
+    await m.answer(t(u,"Выбери предмет","Пәнді таңда"),
+                   reply_markup=kb_subjects(u))
+
+@dp.message_handler(lambda m:m.text in ["Математика","История","География","Биология"])
+async def set_sub(m):
+    u=get_user(m.from_user.id)
+    u["subject"]=m.text
+    u["topic"]=None
+    save_users(users)
+    await m.answer(t(u,"Выбери тему","Тақырыпты таңда"),
+                   reply_markup=kb_topics(m.text))
+
+@dp.message_handler(lambda m:m.text in [
 "Алгебра","Геометрия","Проценты","Логарифмы",
 "Казахстан","Мировая","Даты","Персоны",
 "Климат","Страны","Ресурсы","Карты",
 "Клетка","Генетика","Анатомия","Экология"])
 async def set_topic(m):
-    u = get_user(m.from_user.id)
-    u["topic"] = m.text
+    u=get_user(m.from_user.id)
+    u["topic"]=m.text
     save_users(users)
+    await m.answer(t(u,"Выбери сложность","Деңгейді таңда"),
+                   reply_markup=kb_level())
+
+@dp.message_handler(lambda m:"Легкий" in m.text or "Жеңіл" in m.text)
+async def lvl1(m):
+    u=get_user(m.from_user.id)
+    u["level"]="easy"
+    await ask(m)
+
+@dp.message_handler(lambda m:"Средний" in m.text)
+async def lvl2(m):
+    u=get_user(m.from_user.id)
+    u["level"]="medium"
+    await ask(m)
+
+@dp.message_handler(lambda m:"Сложный" in m.text)
+async def lvl3(m):
+    u=get_user(m.from_user.id)
+    u["level"]="hard"
     await ask(m)
 
 async def ask(m):
-    u = get_user(m.from_user.id)
+    u=get_user(m.from_user.id)
 
-    if await check_limit(m, u):
+    total = u["correct"] + u["wrong"]
+
+    # 🔥 ЛИМИТ
+    if not u["paid"] and total >= LIMIT:
+        await m.answer(
+            f"🚫 Лимит достигнут!\n\n💳 KASPI: {KASPI}\n\nПосле оплаты нажми: Я оплатил"
+        )
         return
 
-    q = await gen(u)
+    msg=await m.answer("⏳")
+    try:
+        q=await gen(u)
+    except:
+        await msg.edit_text("Ошибка генерации")
+        return
 
-    u["last_q"] = q
+    await msg.delete()
+
+    u["last_q"]=q
     save_users(users)
 
-    text = f"{q['q']}\n\n" + "\n".join(q["opts"])
-    await m.answer(text, reply_markup=kb_answers())
+    text=f"{clean(q['q'])}\n\n"+"\n".join(q["opts"])
+    await m.answer(text,reply_markup=kb_answers())
 
-@dp.message_handler(lambda m: m.text in ["A","B","C","D"])
+@dp.message_handler(lambda m:m.text in ["A","B","C","D"])
 async def ans(m):
-    u = get_user(m.from_user.id)
-    q = u.get("last_q")
-
+    u=get_user(m.from_user.id)
+    q=u.get("last_q")
     if not q:
         return
 
-    correct = q.get("correct")
-
-    if not correct:
-        await m.answer("⚠️ Ошибка в вопросе (нет правильного ответа)")
-        return
-
-    ok = m.text == correct
+    ok = m.text == q["correct"]
 
     if ok:
-        u["correct"] += 1
-        await m.answer("✅ Правильно")
+        u["correct"]+=1
+        await m.answer(t(u,"✅ Правильно","✅ Дұрыс"))
     else:
-        u["wrong"] += 1
-        await m.answer(f"❌ Правильный ответ: {correct}")
+        u["wrong"]+=1
+        await m.answer(t(u,
+            f"❌ Правильный ответ: {q['correct']}",
+            f"❌ Дұрыс жауап: {q['correct']}"
+        ))
 
+    await m.answer(clean(q["expl"]))
     save_users(users)
+
     await ask(m)
+
+# ===== RUN =====
+
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
