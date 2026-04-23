@@ -7,7 +7,6 @@ from aiogram.types import ReplyKeyboardMarkup
 from aiogram.utils import executor
 from openai import OpenAI
 
-# ===== CONFIG =====
 API_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -118,18 +117,25 @@ def parse(text):
     opts = []
 
     for l in lines:
-        if any(k in l.lower() for k in ["вопрос", "сұрақ"]):
+        if re.match(r"^(Вопрос|Сұрақ)", l):
             q = l
         if re.match(r"^[A-D]\)", l):
             opts.append(l)
 
-    correct = re.search(r"(Ответ|Жауап)\s*:\s*([A-D])", text)
+    correct_match = re.search(r"(Ответ|Жауап)\s*:\s*([A-D])", text)
+    correct_letter = correct_match.group(2) if correct_match else None
+
+    # ВАЖНО: проверка что ответ реально существует
+    if correct_letter and len(opts) == 4:
+        if correct_letter not in ["A", "B", "C", "D"]:
+            correct_letter = None
+
     expl = re.search(r"(Объяснение|Түсіндіру)\s*:\s*(.+)", text, re.DOTALL)
 
     return {
         "q": q or (lines[0] if lines else ""),
         "opts": opts[:4],
-        "correct": correct.group(2) if correct else None,
+        "correct": correct_letter,
         "expl": expl.group(2).strip() if expl else ""
     }
 
@@ -160,6 +166,8 @@ def build_prompt(u):
 Тақырып: {u['topic']}
 Деңгей: {u['level']}
 
+⚠️ Басқа пәндерге өтпе. Тек осы пән бойынша сұрақ құрастыр.
+
 ФОРМАТ:
 
 Сұрақ: ...
@@ -179,6 +187,8 @@ D) ...
 Предмет: {u['subject']}
 Тема: {u['topic']}
 Сложность: {u['level']}
+
+⚠️ Не смешивай предметы. Вопрос строго по выбранному предмету.
 
 ФОРМАТ:
 
@@ -202,7 +212,8 @@ async def gen(u):
             raw = r.choices[0].message.content
             q = parse(raw)
 
-            if len(q["opts"]) == 4 and q["correct"]:
+            # ЖЕСТКАЯ проверка
+            if len(q["opts"]) == 4 and q["correct"] in ["A","B","C","D"]:
                 return q
 
         except Exception as e:
@@ -326,7 +337,7 @@ async def ans(m):
         await m.answer("✅ Правильно")
     else:
         u["wrong"]+=1
-        await m.answer(f"❌ {q['correct']}")
+        await m.answer(f"❌ Правильный ответ: {q['correct']}")
 
     await m.answer(clean(q["expl"]))
 
