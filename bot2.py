@@ -193,19 +193,19 @@ async def ask(m):
         ))
         return
 
-     if u["subject"] == "Математика":
+    if u["subject"] == "Математика":
         q = gen_math()
     else:
         q = pick_question(u)
         if not q:
-        await m.answer("Нет вопросов")
-         return
-
-    u["last_q"]=q
+            await m.answer("Нет вопросов")
+            return
+    
+    u["last_q"] = q
     save_users(users)
-
-    text=q["q"]+"\n\n"+"\n".join(q["opts"])
-    await m.answer(text,reply_markup=kb_answers())
+    
+    text = q["q"] + "\n\n" + "\n".join(q["opts"])
+    await m.answer(text, reply_markup=kb_answers())
 
 @dp.message_handler(lambda m:m.text in ["A","B","C","D"])
 async def answer(m):
