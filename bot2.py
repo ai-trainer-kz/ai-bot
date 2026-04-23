@@ -48,8 +48,7 @@ def get_user(uid):
             "wrong": 0,
             "history": [],
             "last_q": None,
-            "busy": False
-        }
+            "lang": "ru"
     return users[uid]
 
 # ===== UI =====
@@ -62,7 +61,10 @@ def kb_main(u):
     kb.add(t(u,"📚 Предметы","📚 Пәндер"),
            t(u,"🧠 Тренировка","🧠 Жаттығу"))
     kb.add(t(u,"📊 Статистика","📊 Статистика"),
-           t(u,"🌐 Язык","🌐 Тіл"))
+       t(u,"💳 Доступ","💳 Қолжетімділік"))
+
+    kb.add(t(u,"🌐 Язык","🌐 Тіл"))
+    
     return kb
 
 def kb_subjects(u):
@@ -293,17 +295,104 @@ async def ans(m):
 
     ok = m.text == q["correct"]
 
-    if ok:
-        u["correct"]+=1
-        await m.answer("✅ Правильно")
+lang = u.get("lang","ru")
+
+if ok:
+    u["correct"] += 1
+    if lang == "kz":
+        await m.answer("✅ Дұрыс")
     else:
-        u["wrong"]+=1
+        await m.answer("✅ Правильно")
+else:
+    u["wrong"] += 1
+    if lang == "kz":
+        await m.answer(f"❌ Дұрыс жауап: {q['correct']}")
+    else:
         await m.answer(f"❌ Правильный ответ: {q['correct']}")
 
     await m.answer(clean(q["expl"]))
     save_users(users)
 
     await ask(m)
+
+@dp.message_handler(lambda m: "Доступ" in m.text or "Қолжетімділік" in m.text)
+async def pay(m):
+    u = get_user(m.from_user.id)
+
+    text = (
+        "💳 Оплата\n"
+        "Бауыpжан\n"
+        "@Bautest_pedagog\n"
+        "503301815\n\n"
+        "После оплаты нажми 'Я оплатил'"
+    )
+
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("Я оплатил")
+    kb.add("⬅️ Назад")
+
+    await m.answer(text, reply_markup=kb)
+
+@dp.message_handler(lambda m: m.text == "Я оплатил")
+async def paid(m):
+    user_id = m.from_user.id
+    username = m.from_user.username
+    name = m.from_user.full_name
+
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("7 дней", "30 дней")
+    kb.add("❌ Отказать")
+
+    text = (
+        f"💳 Оплата\n"
+        f"{name}\n"
+        f"@{username}\n"
+        f"{user_id}"
+    )
+
+    await bot.send_message(ADMIN_ID, text, reply_markup=kb)
+    await m.answer("⏳ Заявка отправлена")
+
+@dp.message_handler(lambda m: m.text in ["7 дней","30 дней","❌ Отказать"])
+async def admin_action(m):
+    if m.from_user.id != ADMIN_ID:
+        return
+
+    # получаем последнее сообщение (где был user_id)
+    text = m.reply_to_message.text if m.reply_to_message else ""
+
+    user_id = None
+    for line in text.split("\n"):
+        if line.isdigit():
+            user_id = int(line)
+
+    if not user_id:
+        return
+
+    if m.text == "❌ Отказать":
+        await bot.send_message(user_id, "❌ Оплата отклонена")
+        return
+
+    days = 7 if "7" in m.text else 30
+
+    u = get_user(user_id)
+    u["paid_until"] = days  # пока просто сохраняем
+
+    save_users(users)
+
+    await bot.send_message(user_id, f"✅ Доступ открыт на {days} дней")
+
+@dp.message_handler(lambda m: "Статистика" in m.text)
+async def stats(m):
+    u = get_user(m.from_user.id)
+    lang = u.get("lang","ru")
+
+    if lang == "kz":
+        text = f"📊\nДұрыс: {u['correct']}\nҚате: {u['wrong']}"
+    else:
+        text = f"📊\nПравильно: {u['correct']}\nОшибок: {u['wrong']}"
+
+    await m.answer(text)
 
 # ===== RUN =====
 
