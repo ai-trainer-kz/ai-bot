@@ -4,7 +4,7 @@ import json
 from aiogram import Bot, Dispatcher, types, executor
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
-API_TOKEN = os.getenv("BOT_TOKEN")
+API_TOKEN = "ТВОЙ_ТОКЕН_СЮДА"
 ADMIN_ID = 123456789  # ← ВСТАВЬ СВОЙ ID
 
 logging.basicConfig(level=logging.INFO)
