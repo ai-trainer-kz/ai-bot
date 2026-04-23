@@ -12,7 +12,6 @@ OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
 DATA_FILE = "users.json"
 
-# 🔥 ТВОИ НАСТРОЙКИ
 ADMIN_ID = 8398266271
 KASPI = "4400430352720152"
 LIMIT = 30
@@ -53,8 +52,7 @@ def get_user(uid):
             "wrong": 0,
             "history": [],
             "last_q": None,
-            "busy": False,
-            "paid": False  # 🔥 ДОБАВИЛ
+            "busy": False
         }
     return users[uid]
 
@@ -64,11 +62,12 @@ def t(u, ru, kz):
     return kz if u.get("lang") == "kz" else ru
 
 def kb_main(u):
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add(t(u,"📚 Предметы","📚 Пәндер"),
-           t(u,"🧠 Тренировка","🧠 Жаттығу"))
-    kb.add(t(u,"📊 Статистика","📊 Статистика"),
-           t(u,"🌐 Язык","🌐 Тіл"))
+    kb=ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("📚 "+t(u,"Предметы","Пәндер"))
+    kb.add("🧠 "+t(u,"Тренировка","Жаттығу"))
+    kb.add("📊 "+t(u,"Статистика","Статистика"))
+    kb.add("💳 "+t(u,"Доступ","Қолжетімділік"))
+    kb.add("🌐 "+t(u,"Язык","Тіл"))
     return kb
 
 def kb_subjects(u):
@@ -133,6 +132,7 @@ def parse(text):
     correct_match = re.search(r"(Ответ|Жауап)\s*:\s*([A-D])", text)
     correct_letter = correct_match.group(2) if correct_match else None
 
+    # фикс: гарантируем корректность
     if correct_letter not in ["A","B","C","D"]:
         correct_letter = None
 
@@ -151,9 +151,12 @@ def build_prompt(u):
     if u["lang"] == "kz":
         return f"""
 Тек қазақ тілінде.
+
 Пән: {u['subject']}
 Тақырып: {u['topic']}
 Деңгей: {u['level']}
+
+⚠️ Басқа пәнге өтпе.
 
 Сұрақ: ...
 A) ...
@@ -166,9 +169,12 @@ D) ...
     else:
         return f"""
 Только русский язык.
+
 Предмет: {u['subject']}
 Тема: {u['topic']}
 Сложность: {u['level']}
+
+⚠️ НЕ смешивай предметы.
 
 Вопрос: ...
 A) ...
@@ -207,7 +213,7 @@ async def start(m: types.Message):
 @dp.message_handler(lambda m: "Назад" in m.text)
 async def back(m):
     u = get_user(m.from_user.id)
-    await m.answer(t(u,"Меню","Меню"), reply_markup=kb_main(u))
+    await m.answer("Меню", reply_markup=kb_main(u))
 
 @dp.message_handler(lambda m: "Язык" in m.text or "Тіл" in m.text)
 async def lang(m):
@@ -232,10 +238,9 @@ async def subjects(m):
 async def set_sub(m):
     u=get_user(m.from_user.id)
     u["subject"]=m.text
-    u["topic"]=None
+    u["topic"]=None  # фикс перемешки
     save_users(users)
-    await m.answer(t(u,"Выбери тему","Тақырыпты таңда"),
-                   reply_markup=kb_topics(m.text))
+    await m.answer("Выбери тему",reply_markup=kb_topics(m.text))
 
 @dp.message_handler(lambda m:m.text in [
 "Алгебра","Геометрия","Проценты","Логарифмы",
@@ -246,8 +251,7 @@ async def set_topic(m):
     u=get_user(m.from_user.id)
     u["topic"]=m.text
     save_users(users)
-    await m.answer(t(u,"Выбери сложность","Деңгейді таңда"),
-                   reply_markup=kb_level())
+    await m.answer("Выбери сложность",reply_markup=kb_level())
 
 @dp.message_handler(lambda m:"Легкий" in m.text or "Жеңіл" in m.text)
 async def lvl1(m):
@@ -260,6 +264,12 @@ async def lvl2(m):
     u=get_user(m.from_user.id)
     u["level"]="medium"
     await ask(m)
+    if not u["paid"] and (u["correct"]+u["wrong"])>=u["limit"]:
+        await m.answer(t(u,
+            f"🔒 Лимит достигнут. Оплата: {KASPI}",
+            f"🔒 Лимит бітті. Төлем: {KASPI}"
+        ))
+        return
 
 @dp.message_handler(lambda m:"Сложный" in m.text)
 async def lvl3(m):
@@ -270,14 +280,14 @@ async def lvl3(m):
 async def ask(m):
     u=get_user(m.from_user.id)
 
-    total = u["correct"] + u["wrong"]
-
-    # 🔥 ЛИМИТ
-    if not u["paid"] and total >= LIMIT:
-        await m.answer(
-            f"🚫 Лимит достигнут!\n\n💳 KASPI: {KASPI}\n\nПосле оплаты нажми: Я оплатил"
-        )
-        return
+@dp.message_handler(lambda m:"Доступ" in m.text or "Қолжетімділік" in m.text)
+async def access(m):
+    u=get_user(m.from_user.id)
+    await m.answer(t(u,
+        f"Оплата Kaspi:\n{KASPI}\nПосле оплаты нажми 'Я оплатил'",
+        f"Kaspi төлем:\n{KASPI}\nТөлеген соң 'Мен төледім'"
+    ))
+    await message.answer("⏳ Ожидайте подтверждения")
 
     msg=await m.answer("⏳")
     try:
@@ -305,18 +315,25 @@ async def ans(m):
 
     if ok:
         u["correct"]+=1
-        await m.answer(t(u,"✅ Правильно","✅ Дұрыс"))
+        await m.answer("✅ Правильно")
     else:
         u["wrong"]+=1
-        await m.answer(t(u,
-            f"❌ Правильный ответ: {q['correct']}",
-            f"❌ Дұрыс жауап: {q['correct']}"
-        ))
+        await m.answer(f"❌ Правильный ответ: {q['correct']}")
 
     await m.answer(clean(q["expl"]))
     save_users(users)
 
     await ask(m)
+
+@dp.message_handler(lambda m: m.text.lower() in ["статистика", "📊 статистика"])
+async def stats(m: types.Message):
+    u = get_user(m.from_user.id)
+
+    await m.answer(
+        f"📊 Статистика:\n\n"
+        f"✅ Правильных: {u['correct']}\n"
+        f"❌ Ошибок: {u['wrong']}"
+    )
 
 # ===== RUN =====
 
