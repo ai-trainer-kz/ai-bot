@@ -18,6 +18,7 @@ logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot)
+"used": []
 
 # ===== БАЗА =====
 
@@ -89,19 +90,52 @@ def kb_answers():
 # ===== АДАПТИВКА =====
 
 def pick_question(u):
-    s=u["subject"]
-    tpc=u["topic"]
+    s = u["subject"]
+    tpc = u["topic"]
 
-    pool=QUESTIONS.get(s,{}).get(tpc,[])
+    pool = QUESTIONS.get(s, {}).get(tpc, [])
     if not pool:
         return None
 
-    # слабые темы чаще
-    wrongs=[h for h in u["history"] if not h["ok"]]
-    if wrongs:
-        return random.choice(pool)
+    # убираем использованные
+    unused = [q for q in pool if q["q"] not in u["used"]]
 
-    return random.choice(pool)
+    if not unused:
+        u["used"] = []  # сброс
+        unused = pool
+
+    q = random.choice(unused)
+
+    u["used"].append(q["q"])
+
+    return q
+
+def gen_math():
+    a = random.randint(2, 20)
+    b = random.randint(2, 20)
+
+    correct = a + b
+
+    options = [
+        correct,           
+        correct + random.randint(1,5),
+        correct - random.randint(1,3),
+        correct + random.randint(6,10)
+    ]
+
+    random.shuffle(options)
+
+    letters = ["A","B","C","D"]
+    opts = [f"{letters[i]}) {options[i]}" for i in range(4)]
+
+    correct_letter = letters[options.index(correct)]
+
+    return {
+        "q": f"{a} + {b} = ?",
+        "opts": opts,
+        "correct": correct_letter,
+        "expl": f"{a} + {b} = {correct}"
+    }
 
 # ===== ЛОГИКА =====
 
@@ -160,10 +194,13 @@ async def ask(m):
         ))
         return
 
-    q=pick_question(u)
-    if not q:
+     if u["subject"] == "Математика":
+        q = gen_math()
+    else:
+        q = pick_question(u)
+        if not q:
         await m.answer("Нет вопросов")
-        return
+         return
 
     u["last_q"]=q
     save_users(users)
