@@ -48,8 +48,10 @@ def get_user(uid):
             "wrong": 0,
             "history": [],
             "last_q": None,
-            "lang": "ru"
+            "busy": False
+        }
     return users[uid]
+
 
 # ===== UI =====
 
