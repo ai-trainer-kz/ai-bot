@@ -1,12 +1,16 @@
+import os
+import json
 import logging
 import random
-import json
-from aiogram import Bot, Dispatcher, types, executor
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import ReplyKeyboardMarkup
+from aiogram.utils import executor
 
-API_TOKEN = "ТВОЙ_ТОКЕН_СЮДА"
-ADMIN_ID = 123456789  # ← ВСТАВЬ СВОЙ ID
+API_TOKEN = os.getenv("BOT_TOKEN")
 
+# ⚠️ РЕКВИЗИТЫ ТЕПЕРЬ ЧЕРЕЗ ENV
+KASPI = os.getenv("KASPI_CARD")  # пример: 4400....
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=API_TOKEN)
