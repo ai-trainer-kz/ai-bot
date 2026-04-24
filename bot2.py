@@ -73,7 +73,7 @@ def kb_subjects(u):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("Математика","История")
     kb.add("География","Биология")
-    kb.add("⬅️ Назад")
+    kb.add(t(u, "⬅️ Назад", "⬅️ Артқа"))
     return kb
 
 def kb_topics(subject):
@@ -86,7 +86,7 @@ def kb_topics(subject):
     }
     for tpc in data.get(subject, []):
         kb.add(tpc)
-    kb.add("⬅️ Назад")
+    kb.add(t(u, "⬅️ Назад", "⬅️ Артқа"))
     return kb
 
 def kb_level(u):
@@ -96,19 +96,19 @@ def kb_level(u):
         t(u,"🟡 Средний","🟡 Орта"),
         t(u,"🔴 Сложный","🔴 Қиын")
     )
-    kb.add("⬅️ Назад")
+    kb.add(t(u, "⬅️ Назад", "⬅️ Артқа"))
     return kb
 
-def kb_answers():
+def kb_answers(u):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("A","B","C","D")
-    kb.add("⬅️ Назад")
+    kb.add("A", "B", "C", "D")
+    kb.add(t(u, "⬅️ Назад", "⬅️ Артқа"))
     return kb
 
 def kb_lang():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("Русский","Қазақша")
-    kb.add("⬅️ Назад")
+    kb.add(t(u, "⬅️ Назад", "⬅️ Артқа"))
     return kb
 
 # ===== HELPERS =====
@@ -291,7 +291,7 @@ async def set_sub(m):
     u["subject"]=m.text
     save_users(users)
     await m.answer(t(u,"Выбери тему","Тақырып таңда"),
-                   reply_markup=kb_topics(m.text))
+                   reply_markup=kb_topics(u)
 
 @dp.message_handler(lambda m:m.text in [
 "Алгебра","Геометрия","Проценты","Логарифмы",
@@ -337,7 +337,7 @@ async def ask(m):
     save_users(users)
 
     text=f"{clean(q['q'])}\n\n"+"\n".join(q["opts"])
-    await m.answer(text,reply_markup=kb_answers())
+    await m.answer(text, reply_markup=kb_answers(u))
 
 @dp.message_handler(lambda m:m.text in ["A","B","C","D"])
 async def ans(m):
