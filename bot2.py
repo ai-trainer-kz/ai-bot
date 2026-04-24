@@ -277,7 +277,7 @@ async def ask(m):
     u["last_q"]=q
     save_users(users)
 
-    if u["lang"] == "kz":
+if u["lang"] == "kz":
     text = f"Сұрақ: {clean(q['q'])}\n\n" + "\n".join(q["opts"])
 else:
     text = f"Вопрос: {clean(q['q'])}\n\n" + "\n".join(q["opts"])
