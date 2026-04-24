@@ -285,7 +285,7 @@ async def ask(m):
     u["busy"]=False
 
 @dp.message_handler(lambda m:m.text in ["A","B","C","D"])
-await m.answer(clean(q["expl"]))
+async def ans(m):
     u = get_user(m.from_user.id)
     q = u.get("last_q")
 
