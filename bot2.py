@@ -290,10 +290,10 @@ async def set_sub(m):
     u=get_user(m.from_user.id)
     u["subject"]=m.text
     save_users(users)
-await m.answer(
-    t(u, "Выбери тему", "Тақырып таңда"),
-    reply_markup=kb_topics(u)
-)
+    await m.answer(
+        t(u, "Выбери тему", "Тақырып таңда"),
+        reply_markup=kb_topics(u)
+    )
 @dp.message_handler(lambda m:m.text in [
 "Алгебра","Геометрия","Проценты","Логарифмы",
 "Казахстан","Мировая","Даты","Персоны",
