@@ -209,6 +209,10 @@ async def pay(m: types.Message):
 
 @dp.message_handler(lambda m: m.text == "Я оплатил")
 async def paid(m: types.Message):
+    global last_user
+
+    last_user = str(m.from_user.id)
+
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("7 дней","30 дней","Отказать")
 
@@ -217,19 +221,24 @@ async def paid(m: types.Message):
         f"{m.from_user.id}|{m.from_user.full_name}",
         reply_markup=kb
     )
+
     await m.answer("Ожидай подтверждения")
+
 
 @dp.message_handler(lambda m: m.from_user.id == ADMIN_ID and m.text in ["7 дней","30 дней","Отказать"])
 async def admin(m: types.Message):
-    try:
-        uid,name = m.reply_to_message.text.split("|")
-    except:
+    global last_user
+
+    if not last_user:
+        await m.answer("Нет заявки")
         return
 
     if m.text == "Отказать":
-        await bot.send_message(uid,"❌ Отказано")
+        await bot.send_message(last_user,"❌ Отказано")
     else:
-        await bot.send_message(uid,f"✅ Доступ: {m.text}")
+        await bot.send_message(last_user,f"✅ Доступ: {m.text}")
+
+    last_user = None
 
 # ===== ОСНОВНОЕ =====
 
@@ -251,6 +260,30 @@ async def subjects(m):
     u=get_user(m.from_user.id)
     await m.answer(t(u,"Выбери предмет","Пәнді таңда"),
                    reply_markup=kb_subjects(u))
+
+@dp.message_handler(lambda m: m.text in ["⬅️ Назад","⬅️ Артқа","Артқа"])
+async def back(m: types.Message):
+    u = get_user(m.from_user.id)
+
+    if u.get("topic"):
+        u["topic"] = None
+        save_users(users)
+        await m.answer(
+            t(u,"Выбери тему","Тақырып таңда"),
+            reply_markup=kb_topics(u["subject"])
+        )
+        return
+
+    if u.get("subject"):
+        u["subject"] = None
+        save_users(users)
+        await m.answer(
+            t(u,"Выбери предмет","Пәнді таңда"),
+            reply_markup=kb_subjects(u)
+        )
+        return
+
+    await m.answer("Меню", reply_markup=kb_main(u))
 
 @dp.message_handler(lambda m:m.text in ["Математика","История","География","Биология"])
 async def set_sub(m):
