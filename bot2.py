@@ -311,8 +311,8 @@ async def ans(m):
             await m.answer(f"❌ Правильный ответ: {q['correct']}")
     
     save_users(users)
-    
     await ask(m)
+    
 @dp.message_handler(lambda m:"Статистика" in m.text)
 async def stat(m):
     u=get_user(m.from_user.id)
