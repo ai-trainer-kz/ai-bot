@@ -285,7 +285,7 @@ async def ask(m):
     u["busy"]=False
 
 @dp.message_handler(lambda m:m.text in ["A","B","C","D"])
-async def ans(m):
+await m.answer(clean(q["expl"]))
     u = get_user(m.from_user.id)
     q = u.get("last_q")
 
@@ -295,12 +295,18 @@ async def ans(m):
     ok = m.text == q["correct"]
     lang = u.get("lang", "ru")
 
-    if ok:
+    if m.text == correct:
         u["correct"] += 1
-        await m.answer("✅ Дұрыс" if lang=="kz" else "✅ Правильно")
+        await m.answer("✅ Правильно")
     else:
         u["wrong"] += 1
-        await m.answer(f"❌ Дұрыс жауап: {q['correct']}" if lang=="kz" else f"❌ Правильный ответ: {q['correct']}")
+        await m.answer(f"❌ Правильный ответ: {correct}")
+        else:
+            u["wrong"] += 1
+            await m.answer(f"❌ Дұрыс жауап: {q['correct']}" if lang=="kz" else f"❌ Правильный ответ: {q['correct']}")
+            
+    if "expl" in q:
+        await m.answer(q["expl"]) 
 
     save_users(users)
     await ask(m)
