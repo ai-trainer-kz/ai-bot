@@ -53,6 +53,7 @@ def get_user(uid):
             "history": [],
             "last_q": None,
             "paid": False,
+            "busy": False   # ✅ FIX
         }
     return users[uid]
 
@@ -261,9 +262,6 @@ async def ask(m):
         return
     u["busy"]=True
 
-    if u["history"]:
-        u["topic"]=weakest_topic(u)
-
     msg=await m.answer("⏳")
     try:
         q=await gen(u)
@@ -281,7 +279,7 @@ async def ask(m):
         text = f"Сұрақ: {clean(q['q'])}\n\n" + "\n".join(q["opts"])
     else:
         text = f"Вопрос: {clean(q['q'])}\n\n" + "\n".join(q["opts"])
-    
+
     await m.answer(text, reply_markup=kb_answers())
 
     u["busy"]=False
@@ -290,45 +288,34 @@ async def ask(m):
 async def ans(m):
     u = get_user(m.from_user.id)
     q = u.get("last_q")
-    
+
     if not q:
         return
-    
+
     ok = m.text == q["correct"]
     lang = u.get("lang", "ru")
-    
+
     if ok:
         u["correct"] += 1
-        if lang == "kz":
-            await m.answer("✅ Дұрыс")
-        else:
-            await m.answer("✅ Правильно")
+        await m.answer("✅ Дұрыс" if lang=="kz" else "✅ Правильно")
     else:
         u["wrong"] += 1
-        if lang == "kz":
-            await m.answer(f"❌ Дұрыс жауап: {q['correct']}")
-        else:
-            await m.answer(f"❌ Правильный ответ: {q['correct']}")
-    
+        await m.answer(f"❌ Дұрыс жауап: {q['correct']}" if lang=="kz" else f"❌ Правильный ответ: {q['correct']}")
+
     save_users(users)
     await ask(m)
-    
+
 @dp.message_handler(lambda m:"Статистика" in m.text)
 async def stat(m):
     u=get_user(m.from_user.id)
     total=u["correct"]+u["wrong"]
     p=int(u["correct"]/total*100) if total else 0
     await m.answer(f"✅ {u['correct']}\n❌ {u['wrong']}\n🎯 {p}%")
+
 @dp.message_handler(lambda m: "Доступ" in m.text or "Қолжетімділік" in m.text)
 async def pay(m: types.Message):
-    await m.answer(
-        f"💳 Kaspi:\n{KASPI}\n\nПосле оплаты нажми 'Я оплатил'"
-    )
-@dp.message_handler(lambda m: "Доступ" in m.text or "Қолжетімділік" in m.text)
-async def pay(m: types.Message):
-    await m.answer(
-        f"💳 Kaspi:\n{KASPI}\n\nПосле оплаты нажми 'Я оплатил'"
-    )
+    await m.answer(f"💳 Kaspi:\n{KASPI}\n\nПосле оплаты нажми 'Я оплатил'")
+
 # ===== АДМИН =====
 
 @dp.message_handler(lambda m: m.from_user.id == ADMIN_ID and m.text in ["7 дней","30 дней"])
