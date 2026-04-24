@@ -2,8 +2,6 @@ import os
 import json
 import logging
 import re
-from datetime import datetime, timedelta
-
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup
 from aiogram.utils import executor
@@ -11,7 +9,7 @@ from openai import OpenAI
 
 API_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
-ADMIN_ID = 123456789  # <-- ВСТАВЬ СВОЙ ID
+ADMIN_ID = 123456789  # <-- сюда свой ID
 
 DATA_FILE = "users.json"
 
@@ -51,8 +49,7 @@ def get_user(uid):
             "wrong": 0,
             "history": [],
             "last_q": None,
-            "busy": False,
-            "premium_until": None
+            "busy": False
         }
     return users[uid]
 
@@ -66,8 +63,34 @@ def kb_main(u):
     kb.add(t(u,"📚 Предметы","📚 Пәндер"),
            t(u,"🧠 Тренировка","🧠 Жаттығу"))
     kb.add(t(u,"📊 Статистика","📊 Статистика"),
-           t(u,"💳 Доступ","💳 Қолжетімділік"))
-    kb.add(t(u,"🌐 Язык","🌐 Тіл"))
+           t(u,"🌐 Язык","🌐 Тіл"))
+    kb.add("💳 Доступ")
+    return kb
+
+def kb_subjects(u):
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("Математика","История")
+    kb.add("География","Биология")
+    kb.add("⬅️ Назад")
+    return kb
+
+def kb_topics(subject):
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    data = {
+        "Математика": ["Алгебра","Геометрия","Проценты","Логарифмы"],
+        "История": ["Казахстан","Мировая","Даты","Персоны"],
+        "География": ["Климат","Страны","Ресурсы","Карты"],
+        "Биология": ["Клетка","Генетика","Анатомия","Экология"]
+    }
+    for tpc in data.get(subject, []):
+        kb.add(tpc)
+    kb.add("⬅️ Назад")
+    return kb
+
+def kb_level():
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("🟢 Легкий","🟡 Средний","🔴 Сложный")
+    kb.add("⬅️ Назад")
     return kb
 
 def kb_answers():
@@ -76,10 +99,10 @@ def kb_answers():
     kb.add("⬅️ Назад")
     return kb
 
-def kb_admin():
+def kb_lang():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("7 дней","30 дней")
-    kb.add("❌ Отказать")
+    kb.add("Русский","Қазақша")
+    kb.add("⬅️ Назад")
     return kb
 
 # ===== HELPERS =====
@@ -91,21 +114,59 @@ def clean(text):
     text = text.replace("\\(", "").replace("\\)", "")
     return text.strip()
 
+def parse(text):
+    lines = [l.strip() for l in text.split("\n") if l.strip()]
+
+    q = ""
+    opts = []
+
+    for l in lines:
+        if re.match(r"^(Вопрос|Сұрақ)", l):
+            q = l
+        if re.match(r"^[A-D]\)", l):
+            opts.append(l)
+
+    correct_match = re.search(r"(Ответ|Жауап)\s*:\s*([A-D])", text)
+    correct_letter = correct_match.group(2) if correct_match else None
+
+    if correct_letter not in ["A","B","C","D"]:
+        correct_letter = None
+
+    expl = re.search(r"(Объяснение|Түсіндіру)\s*:\s*(.+)", text, re.DOTALL)
+
+    return {
+        "q": q or (lines[0] if lines else ""),
+        "opts": opts[:4],
+        "correct": correct_letter,
+        "expl": expl.group(2).strip() if expl else ""
+    }
+
 # ===== AI =====
 
-async def ask(m):
-    u=get_user(m.from_user.id)
+def build_prompt(u):
+    if u["lang"] == "kz":
+        return f"""
+Тек қазақ тілінде.
 
-    msg=await m.answer("⏳")
+Пән: {u['subject']}
+Тақырып: {u['topic']}
+Деңгей: {u['level']}
 
-    try:
-        r = client.chat.completions.create(
-            model="gpt-4.1-mini",
-            messages=[{"role":"user","content":f"""
+Сұрақ: ...
+A) ...
+B) ...
+C) ...
+D) ...
+Жауап: A
+Түсіндіру: ...
+"""
+    else:
+        return f"""
+Только русский язык.
+
 Предмет: {u['subject']}
 Тема: {u['topic']}
-
-Сделай тест:
+Сложность: {u['level']}
 
 Вопрос: ...
 A) ...
@@ -114,43 +175,77 @@ C) ...
 D) ...
 Ответ: A
 Объяснение: ...
-"""}]
-        )
+"""
 
-        text=r.choices[0].message.content
+async def gen(u):
+    for _ in range(5):
+        try:
+            r = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[{"role": "user", "content": build_prompt(u)}]
+            )
+            q = parse(r.choices[0].message.content)
 
-    except:
-        await msg.edit_text("Ошибка")
-        return
+            if len(q["opts"]) == 4 and q["correct"]:
+                return q
 
-    await msg.delete()
+        except Exception as e:
+            print("GEN ERR:", e)
 
-    lines=text.split("\n")
+    raise Exception("fail")
 
-    q=[l for l in lines if "Вопрос" in l or "Сұрақ" in l]
-    opts=[l for l in lines if re.match(r"[A-D]\)",l)]
-    correct=re.search(r"Ответ:\s*([A-D])",text)
-    expl=re.search(r"Объяснение:\s*(.+)",text,re.DOTALL)
+# ===== START =====
 
-    q_text=q[0] if q else lines[0]
+@dp.message_handler(commands=["start"])
+async def start(m: types.Message):
+    u = get_user(m.from_user.id)
+    await m.answer(t(u,"👋 Добро пожаловать","👋 Қош келдіңіз"),
+                   reply_markup=kb_main(u))
 
-    u["last_q"]={
-        "q":q_text,
-        "opts":opts,
-        "correct":correct.group(1) if correct else None,
-        "expl":expl.group(1) if expl else ""
-    }
+# ===== ОПЛАТА =====
 
-    save_users(users)
+@dp.message_handler(lambda m: "Доступ" in m.text)
+async def pay(m: types.Message):
+    user = m.from_user
+    await m.answer(
+        f"Kaspi:\n4400430352720152\n\nID: {user.id}\nИмя: {user.full_name}\n\nНажми 'Я оплатил'"
+    )
 
-    # язык вопроса
-    if u["lang"]=="kz":
-        q_text=q_text.replace("Вопрос","Сұрақ")
+@dp.message_handler(lambda m: "Я оплатил" in m.text)
+async def paid(m: types.Message):
+    user = m.from_user
 
-    await m.answer(clean(q_text)+"\n\n"+"\n".join(opts),
-                   reply_markup=kb_answers())
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("7 дней","30 дней","Отказать")
 
-# ===== ANSWER =====
+    await bot.send_message(
+        ADMIN_ID,
+        f"💰 Оплата\nID: {user.id}\nИмя: {user.full_name}"
+    )
+
+    await bot.send_message(ADMIN_ID,"Выбери действие",reply_markup=kb)
+    await m.answer("Ожидай подтверждения")
+
+# ===== АДМИН =====
+
+@dp.message_handler(lambda m: m.from_user.id == ADMIN_ID and m.text in ["7 дней","30 дней"])
+async def admin_ok(m: types.Message):
+    await m.answer("Вставь ID пользователя")
+
+    @dp.message_handler()
+    async def give_access(msg: types.Message):
+        try:
+            uid = int(msg.text)
+            await bot.send_message(uid,"✅ Доступ открыт")
+            await msg.answer("Готово")
+        except:
+            await msg.answer("Ошибка")
+
+@dp.message_handler(lambda m: m.from_user.id == ADMIN_ID and m.text == "Отказать")
+async def admin_no(m: types.Message):
+    await m.answer("Вставь ID пользователя")
+
+# ===== ОТВЕТ =====
 
 @dp.message_handler(lambda m:m.text in ["A","B","C","D"])
 async def ans(m):
@@ -163,79 +258,19 @@ async def ans(m):
 
     if ok:
         u["correct"]+=1
-        if u["lang"]=="kz":
-            await m.answer("✅ Дұрыс")
-        else:
-            await m.answer("✅ Правильно")
+        await m.answer(t(u,"✅ Правильно","✅ Дұрыс"))
     else:
         u["wrong"]+=1
-        if u["lang"]=="kz":
-            await m.answer(f"❌ Дұрыс жауап: {q['correct']}")
-        else:
-            await m.answer(f"❌ Правильный ответ: {q['correct']}")
+        await m.answer(
+            t(u,
+              f"❌ Правильный ответ: {q['correct']}",
+              f"❌ Дұрыс жауап: {q['correct']}")
+        )
 
-    if q.get("expl"):
-        await m.answer(clean(q["expl"]))
-
+    await m.answer(clean(q["expl"]))
     save_users(users)
 
     await ask(m)
-
-# ===== PAYMENT =====
-
-@dp.message_handler(lambda m:"Доступ" in m.text or "Қолжетімділік" in m.text)
-async def pay(m):
-    u=get_user(m.from_user.id)
-
-    text=f"""
-Kaspi: 4400430352720152
-
-ID: {m.from_user.id}
-Имя: {m.from_user.full_name}
-
-Нажми "Я оплатил"
-"""
-    await m.answer(text)
-
-@dp.message_handler(lambda m:"Я оплатил" in m.text)
-async def paid(m):
-    text=f"""
-🔥 Заявка на оплату
-
-ID: {m.from_user.id}
-Имя: {m.from_user.full_name}
-"""
-    await bot.send_message(ADMIN_ID,text,reply_markup=kb_admin())
-    await m.answer("Отправлено администратору")
-
-# ===== ADMIN =====
-
-@dp.message_handler(lambda m:m.from_user.id==ADMIN_ID and m.text=="7 дней")
-async def ok7(m):
-    uid = m.reply_to_message.text.split("ID: ")[1].split("\n")[0]
-    u=get_user(uid)
-    u["premium_until"]=(datetime.now()+timedelta(days=7)).isoformat()
-    save_users(users)
-    await m.answer("Выдано 7 дней")
-
-@dp.message_handler(lambda m:m.from_user.id==ADMIN_ID and m.text=="30 дней")
-async def ok30(m):
-    uid = m.reply_to_message.text.split("ID: ")[1].split("\n")[0]
-    u=get_user(uid)
-    u["premium_until"]=(datetime.now()+timedelta(days=30)).isoformat()
-    save_users(users)
-    await m.answer("Выдано 30 дней")
-
-@dp.message_handler(lambda m:m.from_user.id==ADMIN_ID and "Отказать" in m.text)
-async def no(m):
-    await m.answer("Отклонено")
-
-# ===== START =====
-
-@dp.message_handler(commands=["start"])
-async def start(m: types.Message):
-    u=get_user(m.from_user.id)
-    await m.answer("👋 Добро пожаловать",reply_markup=kb_main(u))
 
 # ===== RUN =====
 
