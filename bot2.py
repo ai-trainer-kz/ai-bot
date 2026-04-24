@@ -288,32 +288,31 @@ async def ask(m):
 
 @dp.message_handler(lambda m:m.text in ["A","B","C","D"])
 async def ans(m):
-    u=get_user(m.from_user.id)
-    q=u.get("last_q")
-    if not q:
-        return
+    u = get_user(m.from_user.id)
+q = u.get("last_q")
 
-    ok = m.text == q["correct"]
+if not q:
+    return
 
-    if ok:
-        u["correct"] += 1
-        if u["lang"] == "kz":
-            await m.answer("✅ Дұрыс")
-        else:
-            await m.answer("✅ Правильно")
+ok = m.text == q["correct"]
+lang = u.get("lang", "ru")
+
+if ok:
+    u["correct"] += 1
+    if lang == "kz":
+        await m.answer("✅ Дұрыс")
     else:
-        u["wrong"] += 1
-        if u["lang"] == "kz":
-            await m.answer(f"❌ Дұрыс жауап: {q['correct']}")
-        else:
-            await m.answer(f"❌ Правильный ответ: {q['correct']}")
-            await m.answer(clean(q["expl"]))
+        await m.answer("✅ Правильно")
+else:
+    u["wrong"] += 1
+    if lang == "kz":
+        await m.answer(f"❌ Дұрыс жауап: {q['correct']}")
+    else:
+        await m.answer(f"❌ Правильный ответ: {q['correct']}")
 
-    u["history"].append({"topic":u["topic"],"ok":ok})
-    save_users(users)
+save_users(users)
 
-    await ask(m)
-
+await ask(m)
 @dp.message_handler(lambda m:"Статистика" in m.text)
 async def stat(m):
     u=get_user(m.from_user.id)
