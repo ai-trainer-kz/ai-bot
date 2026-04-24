@@ -292,19 +292,21 @@ async def ans(m):
     if not q:
         return
 
-    ok=m.text==q["correct"]
+    ok = m.text == q["correct"]
 
-    if u["lang"] == "kz":
-    await m.answer("✅ Дұрыс")
-else:
-    await m.answer("✅ Правильно")
+    if ok:
+        u["correct"] += 1
+        if u["lang"] == "kz":
+            await m.answer("✅ Дұрыс")
+        else:
+            await m.answer("✅ Правильно")
     else:
-        u["wrong"]+=1
-       if u["lang"] == "kz":
-    await m.answer(f"❌ Дұрыс жауап: {q['correct']}")
-else:
-    await m.answer(f"❌ Правильный ответ: {q['correct']}")
-    await m.answer(clean(q["expl"]))
+        u["wrong"] += 1
+        if u["lang"] == "kz":
+            await m.answer(f"❌ Дұрыс жауап: {q['correct']}")
+        else:
+            await m.answer(f"❌ Правильный ответ: {q['correct']}")
+            await m.answer(clean(q["expl"]))
 
     u["history"].append({"topic":u["topic"],"ok":ok})
     save_users(users)
