@@ -281,7 +281,7 @@ if u["lang"] == "kz":
     text = f"Сұрақ: {clean(q['q'])}\n\n" + "\n".join(q["opts"])
 else:
     text = f"Вопрос: {clean(q['q'])}\n\n" + "\n".join(q["opts"])
-    await m.answer(text,reply_markup=kb_answers())
+            await m.answer(text,reply_markup=kb_answers())
 
     u["busy"]=False
 
