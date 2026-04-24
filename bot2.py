@@ -1,19 +1,11 @@
-import os
-import json
 import logging
-import re
-from aiogram import Bot, Dispatcher, types
+import random
+import json
+from aiogram import Bot, Dispatcher, types, executor
 from aiogram.types import ReplyKeyboardMarkup
-from aiogram.utils import executor
-from openai import OpenAI
 
-# ===== CONFIG =====
-API_TOKEN = os.getenv("BOT_TOKEN")
-OPENAI_KEY = os.getenv("OPENAI_API_KEY")
-
+API_TOKEN = "8315601912:AAHoo0mcZHJV8qtlDdjze7HQvM6tXgM9U88"
 ADMIN_ID = 8398266271
-KASPI = "4400430352720152"
-
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=API_TOKEN)
@@ -43,8 +35,7 @@ def get_user(uid):
             "topic": None,
             "correct": 0,
             "wrong": 0,
-            "last_q": None,
-            "paid": False
+            "last_q": None
         }
     return users[uid]
 
@@ -66,76 +57,87 @@ QUESTIONS = {
                 "q": "Кто открыл Америку?",
                 "opts": ["A) Колумб", "B) Наполеон", "C) Цезарь", "D) Линкольн"],
                 "correct": "A",
-                "expl": "Христофор Колумб открыл Америку в 1492 году"
+                "expl": "Колумб открыл Америку в 1492 году"
             }
         ]
     }
 }
 
-# ===== KEYBOARD =====
-def main_kb():
+# ===== KEYBOARDS =====
+def kb_main():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("📚 Предметы", "🧠 Тренировка")
     kb.add("📊 Статистика", "💳 Доступ")
     kb.add("🌐 Язык")
     return kb
 
-def subjects_kb():
+def kb_subjects():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("Математика", "История")
     kb.add("⬅️ Назад")
     return kb
 
-def topics_kb(subj):
+def kb_topics(u):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    for t in QUESTIONS[subj]:
+    for t in QUESTIONS[u["subject"]]:
         kb.add(t)
     kb.add("⬅️ Назад")
     return kb
 
-def answers_kb():
+def kb_answers():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("A","B","C","D")
+    kb.add("A", "B", "C", "D")
+    kb.add("⬅️ Назад")
     return kb
 
 # ===== START =====
 @dp.message_handler(commands=["start"])
 async def start(m: types.Message):
-    await m.answer("Добро пожаловать", reply_markup=main_kb())
+    await m.answer("Меню", reply_markup=kb_main())
 
-# ===== MENU =====
+# ===== МЕНЮ =====
 @dp.message_handler(lambda m: "Предмет" in m.text)
-async def subjects(m: types.Message):
-    await m.answer("Выбери предмет", reply_markup=subjects_kb())
+async def menu_subjects(m: types.Message):
+    u = get_user(m.from_user.id)
+    u["subject"] = None
+    u["topic"] = None
+    await m.answer("Выбери предмет", reply_markup=kb_subjects())
 
 @dp.message_handler(lambda m: "Трен" in m.text)
-async def train(m: types.Message):
-    await m.answer("Выбери предмет", reply_markup=subjects_kb())
+async def menu_train(m: types.Message):
+    u = get_user(m.from_user.id)
+    u["subject"] = None
+    u["topic"] = None
+    await m.answer("Выбери предмет", reply_markup=kb_subjects())
 
 @dp.message_handler(lambda m: "Стат" in m.text)
 async def stat(m: types.Message):
     u = get_user(m.from_user.id)
     total = u["correct"] + u["wrong"]
-    p = int(u["correct"]/total*100) if total else 0
+    p = int(u["correct"] / total * 100) if total else 0
     await m.answer(f"✅ {u['correct']}\n❌ {u['wrong']}\n🎯 {p}%")
 
-# ===== PAYMENT =====
+# ===== ОПЛАТА =====
 @dp.message_handler(lambda m: "Доступ" in m.text)
 async def pay(m: types.Message):
     await m.answer("Kaspi:\n4400430352720152\n\nНажми 'Я оплатил'")
 
 @dp.message_handler(lambda m: "Я оплатил" in m.text)
 async def paid(m: types.Message):
-    u = m.from_user
+    user = m.from_user
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add("7 дней", "30 дней", "Отказать")
+
     await bot.send_message(
         ADMIN_ID,
-        f"💰 Оплата\nID: {u.id}\nИмя: {u.full_name}",
-        reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add("7 дней","30 дней","Отказать")
+        f"💰 Оплата\nID: {user.id}\nИмя: {user.full_name}",
+        reply_markup=kb
     )
+
     await m.answer("Ожидай подтверждения")
 
-# ===== ADMIN =====
-@dp.message_handler(lambda m: m.from_user.id == ADMIN_ID and m.text in ["7 дней","30 дней"])
+# ===== АДМИН =====
+@dp.message_handler(lambda m: m.from_user.id == ADMIN_ID and m.text in ["7 дней", "30 дней"])
 async def admin_ok(m: types.Message):
     await m.answer("✅ Одобрено")
 
@@ -143,41 +145,55 @@ async def admin_ok(m: types.Message):
 async def admin_no(m: types.Message):
     await m.answer("❌ Отклонено")
 
-# ===== SUBJECT =====
-@dp.message_handler(lambda m: m.text in ["Математика","История"])
-async def subject(m: types.Message):
-    u = get_user(m.from_user.id)
-    u["subject"] = m.text
-    save_users(users)
-    await m.answer("Выбери тему", reply_markup=topics_kb(m.text))
-
-# ===== TOPIC =====
-@dp.message_handler(lambda m: m.text == "⬅️ Назад")
-async def back(m: types.Message):
-    await m.answer("Меню", reply_markup=main_kb())
-
+# ===== ОСНОВНАЯ ЛОГИКА =====
 @dp.message_handler()
-async def topic_handler(m: types.Message):
+async def topic_or_answer(m: types.Message):
     u = get_user(m.from_user.id)
 
+    # назад
+    if m.text == "⬅️ Назад":
+        if u.get("topic"):
+            u["topic"] = None
+            await m.answer("Выбери тему", reply_markup=kb_topics(u))
+        else:
+            u["subject"] = None
+            await m.answer("Выбери предмет", reply_markup=kb_subjects())
+        return
+
+    # выбор предмета
+    if m.text in ["Математика", "История"]:
+        u["subject"] = m.text
+        u["topic"] = None
+        save_users(users)
+        await m.answer("Выбери тему", reply_markup=kb_topics(u))
+        return
+
+    # выбор темы
     if u.get("subject") and not u.get("topic"):
         if m.text in QUESTIONS[u["subject"]]:
             u["topic"] = m.text
             save_users(users)
             await ask(m)
+            return
 
-# ===== ASK =====
+    # ответ
+    if m.text in ["A", "B", "C", "D"]:
+        await answer(m)
+
+# ===== ВОПРОС =====
 async def ask(m):
     u = get_user(m.from_user.id)
-    q = random.choice(QUESTIONS[u["subject"]][u["topic"]])
+
+    qs = QUESTIONS[u["subject"]][u["topic"]]
+    q = random.choice(qs)
+
     u["last_q"] = q
     save_users(users)
 
-    text = f"Вопрос: {q['q']}\n\n" + "\n".join(q["opts"])
-    await m.answer(text, reply_markup=answers_kb())
+    text = q["q"] + "\n\n" + "\n".join(q["opts"])
+    await m.answer(text, reply_markup=kb_answers())
 
-# ===== ANSWER =====
-@dp.message_handler(lambda m: m.text in ["A","B","C","D"])
+# ===== ОТВЕТ =====
 async def answer(m):
     u = get_user(m.from_user.id)
     q = u.get("last_q")
@@ -194,6 +210,7 @@ async def answer(m):
         u["wrong"] += 1
         await m.answer(f"❌ Правильный ответ: {correct}")
 
+    # объяснение
     if "expl" in q:
         await m.answer(q["expl"])
 
