@@ -76,17 +76,23 @@ def kb_subjects(u):
     kb.add(t(u, "⬅️ Назад", "⬅️ Артқа"))
     return kb
 
-def kb_topics(subject):
+def kb_topics(u):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
+
     data = {
         "Математика": ["Алгебра","Геометрия","Проценты","Логарифмы"],
         "История": ["Казахстан","Мировая","Даты","Персоны"],
         "География": ["Климат","Страны","Ресурсы","Карты"],
         "Биология": ["Клетка","Генетика","Анатомия","Экология"]
     }
+
+    subject = u["subject"]
+
     for tpc in data.get(subject, []):
         kb.add(tpc)
+
     kb.add(t(u, "⬅️ Назад", "⬅️ Артқа"))
+
     return kb
 
 def kb_level(u):
