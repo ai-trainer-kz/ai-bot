@@ -2,7 +2,6 @@ import os
 import json
 import logging
 import re
-import time
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup
 from aiogram.utils import executor
@@ -50,8 +49,7 @@ def get_user(uid):
             "wrong": 0,
             "history": [],
             "last_q": None,
-            "busy": False,
-            "access_until": 0
+            "busy": False
         }
     return users[uid]
 
@@ -65,56 +63,45 @@ def kb_main(u):
     kb.add(t(u,"📚 Предметы","📚 Пәндер"),
            t(u,"🧠 Тренировка","🧠 Жаттығу"))
     kb.add(t(u,"📊 Статистика","📊 Статистика"),
-           t(u,"💳 Доступ","💳 Қолжетімділік"))
-    kb.add(t(u,"🌐 Язык","🌐 Тіл"))
+           t(u,"🌐 Язык","🌐 Тіл"))
     return kb
 
 def kb_subjects(u):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("Математика","История")
     kb.add("География","Биология")
-    kb.add(t(u, "⬅️ Назад", "⬅️ Артқа"))
+    kb.add("⬅️ Назад")
     return kb
 
-def kb_topics(u):
+def kb_topics(subject):
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-
     data = {
         "Математика": ["Алгебра","Геометрия","Проценты","Логарифмы"],
         "История": ["Казахстан","Мировая","Даты","Персоны"],
         "География": ["Климат","Страны","Ресурсы","Карты"],
         "Биология": ["Клетка","Генетика","Анатомия","Экология"]
     }
-
-    subject = u["subject"]
-
     for tpc in data.get(subject, []):
         kb.add(tpc)
-
-    kb.add(t(u, "⬅️ Назад", "⬅️ Артқа"))
-
+    kb.add("⬅️ Назад")
     return kb
 
-def kb_level(u):
+def kb_level():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add(
-        t(u,"🟢 Легкий","🟢 Жеңіл"),
-        t(u,"🟡 Средний","🟡 Орта"),
-        t(u,"🔴 Сложный","🔴 Қиын")
-    )
-    kb.add(t(u, "⬅️ Назад", "⬅️ Артқа"))
+    kb.add("🟢 Легкий","🟡 Средний","🔴 Сложный")
+    kb.add("⬅️ Назад")
     return kb
 
-def kb_answers(u):
+def kb_answers():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("A", "B", "C", "D")
-    kb.add(t(u, "⬅️ Назад", "⬅️ Артқа"))
+    kb.add("A","B","C","D")
+    kb.add("⬅️ Назад")
     return kb
 
 def kb_lang():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("Русский","Қазақша")
-    kb.add(t(u, "⬅️ Назад", "⬅️ Артқа"))
+    kb.add("⬅️ Назад")
     return kb
 
 # ===== HELPERS =====
@@ -141,6 +128,7 @@ def parse(text):
     correct_match = re.search(r"(Ответ|Жауап)\s*:\s*([A-D])", text)
     correct_letter = correct_match.group(2) if correct_match else None
 
+    # фикс: гарантируем корректность
     if correct_letter not in ["A","B","C","D"]:
         correct_letter = None
 
@@ -164,6 +152,8 @@ def build_prompt(u):
 Тақырып: {u['topic']}
 Деңгей: {u['level']}
 
+⚠️ Басқа пәнге өтпе.
+
 Сұрақ: ...
 A) ...
 B) ...
@@ -180,6 +170,8 @@ D) ...
 Тема: {u['topic']}
 Сложность: {u['level']}
 
+⚠️ НЕ смешивай предметы.
+
 Вопрос: ...
 A) ...
 B) ...
@@ -190,13 +182,23 @@ D) ...
 """
 
 async def gen(u):
-    r = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[{"role": "user", "content": build_prompt(u)}]
-    )
-    return parse(r.choices[0].message.content)
+    for _ in range(5):
+        try:
+            r = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[{"role": "user", "content": build_prompt(u)}]
+            )
+            q = parse(r.choices[0].message.content)
 
-# ===== START =====
+            if len(q["opts"]) == 4 and q["correct"]:
+                return q
+
+        except Exception as e:
+            print("GEN ERR:", e)
+
+    raise Exception("fail")
+
+# ===== HANDLERS =====
 
 @dp.message_handler(commands=["start"])
 async def start(m: types.Message):
@@ -204,57 +206,18 @@ async def start(m: types.Message):
     await m.answer(t(u,"👋 Добро пожаловать","👋 Қош келдіңіз"),
                    reply_markup=kb_main(u))
 
-# ===== ОПЛАТА =====
-
-@dp.message_handler(lambda m: "Доступ" in m.text or "Қолжетімділік" in m.text)
-async def pay(m: types.Message):
+@dp.message_handler(lambda m: "Назад" in m.text)
+async def back(m):
     u = get_user(m.from_user.id)
-    await m.answer(
-        f"Kaspi:\n4400430352720152\n\nID: {m.from_user.id}\nИмя: {m.from_user.full_name}\n\nНажми 'Я оплатил'"
-    )
+    await m.answer("Меню", reply_markup=kb_main(u))
 
-@dp.message_handler(lambda m: m.text == "Я оплатил")
-async def paid(m: types.Message):
-    global last_user
-
-    last_user = str(m.from_user.id)
-
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add("7 дней","30 дней","Отказать")
-
-    await bot.send_message(
-        ADMIN_ID,
-        f"{m.from_user.id}|{m.from_user.full_name}",
-        reply_markup=kb
-    )
-
-    await m.answer("Ожидай подтверждения")
-
-
-@dp.message_handler(lambda m: m.from_user.id == ADMIN_ID and m.text in ["7 дней","30 дней","Отказать"])
-async def admin(m: types.Message):
-    global last_user
-
-    if not last_user:
-        await m.answer("Нет заявки")
-        return
-
-    if m.text == "Отказать":
-        await bot.send_message(last_user,"❌ Отказано")
-    else:
-        await bot.send_message(last_user,f"✅ Доступ: {m.text}")
-
-    last_user = None
-
-# ===== ОСНОВНОЕ =====
-
-@dp.message_handler(lambda m:"Язык" in m.text or "Тіл" in m.text)
+@dp.message_handler(lambda m: "Язык" in m.text or "Тіл" in m.text)
 async def lang(m):
     u=get_user(m.from_user.id)
     await m.answer(t(u,"Выбери язык","Тілді таңда"),
                    reply_markup=kb_lang())
 
-@dp.message_handler(lambda m:m.text in ["Русский","Қазақша"])
+@dp.message_handler(lambda m: m.text in ["Русский","Қазақша"])
 async def set_lang(m):
     u=get_user(m.from_user.id)
     u["lang"]="kz" if m.text=="Қазақша" else "ru"
@@ -267,39 +230,14 @@ async def subjects(m):
     await m.answer(t(u,"Выбери предмет","Пәнді таңда"),
                    reply_markup=kb_subjects(u))
 
-@dp.message_handler(lambda m: m.text in ["⬅️ Назад","⬅️ Артқа","Артқа"])
-async def back(m: types.Message):
-    u = get_user(m.from_user.id)
-
-    if u.get("topic"):
-        u["topic"] = None
-        save_users(users)
-        await m.answer(
-            t(u,"Выбери тему","Тақырып таңда"),
-            reply_markup=kb_topics(u["subject"])
-        )
-        return
-
-    if u.get("subject"):
-        u["subject"] = None
-        save_users(users)
-        await m.answer(
-            t(u,"Выбери предмет","Пәнді таңда"),
-            reply_markup=kb_subjects(u)
-        )
-        return
-
-    await m.answer("Меню", reply_markup=kb_main(u))
-
 @dp.message_handler(lambda m:m.text in ["Математика","История","География","Биология"])
 async def set_sub(m):
     u=get_user(m.from_user.id)
     u["subject"]=m.text
+    u["topic"]=None  # фикс перемешки
     save_users(users)
-    await m.answer(
-        t(u, "Выбери тему", "Тақырып таңда"),
-        reply_markup=kb_topics(u)
-    )
+    await m.answer("Выбери тему",reply_markup=kb_topics(m.text))
+
 @dp.message_handler(lambda m:m.text in [
 "Алгебра","Геометрия","Проценты","Логарифмы",
 "Казахстан","Мировая","Даты","Персоны",
@@ -309,8 +247,7 @@ async def set_topic(m):
     u=get_user(m.from_user.id)
     u["topic"]=m.text
     save_users(users)
-    await m.answer(t(u,"Выбери сложность","Қиындық таңда"),
-                   reply_markup=kb_level(u))
+    await m.answer("Выбери сложность",reply_markup=kb_level())
 
 @dp.message_handler(lambda m:"Легкий" in m.text or "Жеңіл" in m.text)
 async def lvl1(m):
@@ -318,13 +255,13 @@ async def lvl1(m):
     u["level"]="easy"
     await ask(m)
 
-@dp.message_handler(lambda m:"Средний" in m.text or "Орта" in m.text)
+@dp.message_handler(lambda m:"Средний" in m.text)
 async def lvl2(m):
     u=get_user(m.from_user.id)
     u["level"]="medium"
     await ask(m)
 
-@dp.message_handler(lambda m:"Сложный" in m.text or "Қиын" in m.text)
+@dp.message_handler(lambda m:"Сложный" in m.text)
 async def lvl3(m):
     u=get_user(m.from_user.id)
     u["level"]="hard"
@@ -332,6 +269,7 @@ async def lvl3(m):
 
 async def ask(m):
     u=get_user(m.from_user.id)
+
     msg=await m.answer("⏳")
     try:
         q=await gen(u)
@@ -340,11 +278,12 @@ async def ask(m):
         return
 
     await msg.delete()
+
     u["last_q"]=q
     save_users(users)
 
     text=f"{clean(q['q'])}\n\n"+"\n".join(q["opts"])
-    await m.answer(text, reply_markup=kb_answers(u))
+    await m.answer(text,reply_markup=kb_answers())
 
 @dp.message_handler(lambda m:m.text in ["A","B","C","D"])
 async def ans(m):
@@ -357,11 +296,10 @@ async def ans(m):
 
     if ok:
         u["correct"]+=1
-        await m.answer(t(u,"✅ Правильно","✅ Дұрыс"))
+        await m.answer("✅ Правильно")
     else:
         u["wrong"]+=1
-        await m.answer(t(u,f"❌ Правильный ответ: {q['correct']}",
-                           f"❌ Дұрыс жауап: {q['correct']}"))
+        await m.answer(f"❌ Правильный ответ: {q['correct']}")
 
     await m.answer(clean(q["expl"]))
     save_users(users)
